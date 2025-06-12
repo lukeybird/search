@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Easy Home</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background: #0a0a12;
+            font-family: 'Orbitron', 'Share Tech Mono', monospace;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .futuristic-container {
+            width: 100vw;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .input-line-wrapper {
+            position: relative;
+            width: 90vw;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .typed-text {
+            font-family: 'Orbitron', 'Share Tech Mono', monospace;
+            font-size: 2.5rem;
+            color: #fff;
+            letter-spacing: 0.04em;
+            text-align: left;
+            min-height: 3.2rem;
+            margin-bottom: 0.2em;
+            word-break: break-all;
+            transition: color 0.2s;
+            display: flex;
+            align-items: center;
+        }
+        .prefix {
+            color: #00ffe7;
+            font-weight: 700;
+            margin-right: 0.3em;
+            user-select: none;
+        }
+        .blinking-cursor {
+            display: inline-block;
+            width: 1.2ch;
+            color: #00ffe7;
+            background: none;
+            font-size: 2.5rem;
+            animation: blink 1s steps(1) infinite;
+            vertical-align: bottom;
+        }
+        @keyframes blink {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
+        }
+        .futuristic-line {
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, #00ffe7 0%, #007bff 100%);
+            border-radius: 2px;
+            box-shadow: 0 0 16px #00ffe7, 0 0 32px #007bff44;
+            margin-bottom: 32px;
+        }
+        .autocomplete-list {
+            position: absolute;
+            left: 0;
+            top: 3.5rem;
+            width: 100%;
+            z-index: 10;
+            background: transparent;
+            pointer-events: none; /* Default to off, turn on when needed */
+        }
+        .autocomplete-item {
+            font-family: 'Orbitron', 'Share Tech Mono', monospace;
+            font-size: 1.3rem;
+            color: #00ffe7;
+            background: #181828cc;
+            border-radius: 8px;
+            margin: 0.2em 0;
+            padding: 0.5em 1em;
+            box-shadow: 0 2px 8px #00ffe733;
+            pointer-events: auto;
+            cursor: pointer;
+            opacity: 0.95;
+            transition: background 0.18s, color 0.18s;
+        }
+        .autocomplete-item.selected, .autocomplete-item:hover {
+            background: #00ffe7;
+            color: #181828;
+        }
+        @media (max-width: 600px) {
+            .typed-text, .blinking-cursor {
+                font-size: 1.3rem;
+            }
+            .input-line-wrapper {
+                max-width: 98vw;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="futuristic-container">
+        <div class="input-line-wrapper">
+            <div class="typed-text" id="typedText"><span class="prefix" id="prefixSpan"></span><span id="userInputSpan"></span><span class="blinking-cursor" id="cursor">|</span></div>
+            <div class="futuristic-line"></div>
+            <div id="autocompleteList"></div>
+        </div>
+    </div>
+    <script>
+        const APPS = [
+            { name: 'URL', icon: '🔗', keywords: ['url', 'link', 'website', 'go'], isDirectSearch: true, searchUrl: 'https://www.google.com/search?q={query}' },
+            { name: 'Google', icon: '🔍', keywords: ['google', 'search', 'g'], isDirectSearch: false, subTools: [
+                { name: 'Search', icon: '🔍', keywords: ['search', 'web', 'google'], searchUrl: 'https://www.google.com/search?q={query}' },
+                { name: 'Images', icon: '📷', keywords: ['images', 'pics', 'photos', 'pictures'], searchUrl: 'https://www.google.com/search?tbm=isch&q={query}' },
+                { name: 'Maps', icon: '🗺️', keywords: ['maps', 'map', 'location', 'directions'], searchUrl: 'https://www.google.com/maps/search/{query}' }
+            ]},
+            { name: 'YouTube', icon: '🎥', keywords: ['youtube', 'yt', 'video', 'videos'], isDirectSearch: false, subTools: [
+                { name: 'Videos', icon: '🎬', keywords: ['videos', 'video', 'watch'], searchUrl: 'https://www.youtube.com/results?search_query={query}' },
+                { name: 'Shorts', icon: '▶️', keywords: ['shorts', 'short'], searchUrl: 'https://www.youtube.com/results?search_query={query}&sp=EgIYAQ%253D%253D' },
+                { name: 'Channel', icon: '📺', keywords: ['channel', 'creator'], searchUrl: 'https://www.youtube.com/results?search_query={query}&sp=EgIQAg%253D%253D' }
+            ]},
+            { name: 'Bing', icon: '🔮', keywords: ['bing', 'search', 'b'], isDirectSearch: false, searchUrl: 'https://www.bing.com/search?q={query}' },
+            { name: 'DuckDuckGo', icon: '🦆', keywords: ['duckduckgo', 'ddg', 'duck'], isDirectSearch: false, searchUrl: 'https://duckduckgo.com/?q={query}' },
+            { name: 'Pexels', icon: '✨', keywords: ['pexels', 'photos', 'images'], isDirectSearch: false, searchUrl: 'https://www.pexels.com/search/{query}/' },
+            { name: 'Pixabay', icon: '📸', keywords: ['pixabay', 'photos', 'images'], isDirectSearch: false, searchUrl: 'https://pixabay.com/images/search/{query}/' },
+            { name: 'WebStarts Help', icon: '🟢', keywords: ['webstarts', 'help', 'support'], isDirectSearch: false, searchUrl: 'https://help.webstarts.com/search?query={query}' },
+            { name: 'Vimeo', icon: '🎬', keywords: ['vimeo', 'video', 'videos'], isDirectSearch: false, searchUrl: 'https://vimeo.com/search?q={query}' },
+            { name: 'Wikipedia', icon: '📚', keywords: ['wikipedia', 'wiki', 'w'], isDirectSearch: false, searchUrl: 'https://en.wikipedia.org/wiki/Special:Search?search={query}' },
+            { name: 'X (formerly Twitter)', icon: '✖️', keywords: ['twitter', 'tweet', 'tweets', 'x'], isDirectSearch: false, searchUrl: 'https://twitter.com/search?q={query}' },
+            { name: 'Reddit', icon: '👽', keywords: ['reddit', 'redd', 'r'], isDirectSearch: false, searchUrl: 'https://www.reddit.com/search/?q={query}' },
+            { name: 'Amazon', icon: '🛒', keywords: ['amazon', 'shop', 'buy'], isDirectSearch: false, searchUrl: 'https://www.amazon.com/s?k={query}' },
+            { name: 'Stack Overflow', icon: '💡', keywords: ['stackoverflow', 'stack', 'so'], isDirectSearch: false, searchUrl: 'https://stackoverflow.com/search?q={query}' },
+            { name: 'Spotify', icon: '🎵', keywords: ['spotify', 'music', 'songs'], isDirectSearch: false, searchUrl: 'https://open.spotify.com/search/{query}' },
+            { name: 'Unsplash', icon: '🌄', keywords: ['unsplash', 'photos', 'images'], isDirectSearch: false, searchUrl: 'https://unsplash.com/s/photos/{query}' },
+            { name: 'GitHub', icon: '🐙', keywords: ['github', 'git', 'code'], isDirectSearch: false, searchUrl: 'https://github.com/search?q={query}&type=users' },
+            { name: 'WhatsApp', icon: '💬', keywords: ['whatsapp', 'wa', 'chat', 'messages'], isDirectSearch: true, searchUrl: 'https://web.whatsapp.com/' },
+            { name: 'Messenger', icon: '✉️', keywords: ['messenger', 'fb messenger', 'messages'], isDirectSearch: true, searchUrl: 'https://www.messenger.com/' },
+            { name: 'Facebook', icon: '🔵', keywords: ['facebook', 'fb', 'social'], isDirectSearch: true, searchUrl: 'https://www.facebook.com/' },
+            { name: 'Screenshare', icon: '📞', keywords: ['video call', 'call', 'meeting', 'screenshare'], isDirectSearch: true, searchUrl: 'https://share.jarmetals.com/' },
+            { name: 'ChatGPT', icon: '🤖', keywords: ['chatgpt', 'gpt', 'ai', 'chatbot'], isDirectSearch: true, searchUrl: 'https://chat.openai.com/' },
+            { name: 'Grok', icon: '🧠', keywords: ['grok', 'xai', 'ai'], isDirectSearch: true, searchUrl: 'https://grok.x.ai/' },
+            //{ name: 'Bunny', icon: '🐰', keywords: ['pornhub', 'porn', 'sex', 'pornhub.com'], isDirectSearch: false, searchUrl: 'https://www.pornhub.com/video/search?search={query}' }
+        ];
+
+        let selectedApp = null;
+        let selectedSubTool = null;
+        let searchPhase = 0; // 0: app select, 1: sub-tool select, 2: query input
+        let selectedIndex = -1;
+        let inputValue = '';
+        let isInformationMode = false; // New flag to track if 'information' command is active
+
+        const typedText = document.getElementById('typedText');
+        const prefixSpan = document.getElementById('prefixSpan');
+        const userInputSpan = document.getElementById('userInputSpan');
+        const cursor = document.getElementById('cursor');
+        const autocompleteList = document.getElementById('autocompleteList');
+
+        function getPredictions(val, items) {
+            val = val.toLowerCase();
+            return items.filter(item => item.keywords.some(k => k.startsWith(val) || item.name.toLowerCase().startsWith(val)));
+        }
+
+        function showAutocomplete() {
+            autocompleteList.innerHTML = ''; // Always clear first
+            autocompleteList.style.pointerEvents = 'none'; // Default to off
+
+            const val = inputValue.trim().toLowerCase();
+            let itemsToSuggest = [];
+            let predictions = [];
+
+            // Determine the base set of items to suggest based on phase
+            if (searchPhase === 0) { // App selection phase
+                itemsToSuggest = APPS;
+            } else if (searchPhase === 1 && selectedApp && selectedApp.subTools) { // Sub-tool selection phase
+                itemsToSuggest = selectedApp.subTools;
+            } else { // Phase 2 (query input) or no valid selectedApp/subTools
+                return; // No autocomplete in query phase, or if no valid app/subtool
+            }
+
+            const informationSuggestion = { name: 'Information', keywords: ['information', 'info'], icon: 'ℹ️' };
+            const isTypingInformationPrefix = 'information'.startsWith(val) && val.length > 0;
+
+            if (isInformationMode) {
+                // If in information mode, show all relevant items or filter them if user types
+                if (val === '') { // If no input in information mode, show all
+                    predictions = itemsToSuggest.slice(); // Start with all items
+                } else { // If typing in information mode, filter the full list
+                    predictions = getPredictions(val, itemsToSuggest); // Filter the full list
+                }
+                // Always add 'Information' suggestion in information mode if typing its prefix or if input is empty
+                if (isTypingInformationPrefix || val === '') {
+                    if (!predictions.some(item => item.name === informationSuggestion.name)) {
+                        predictions.push(informationSuggestion);
+                    }
+                }
+            } else { // Normal mode (not in information mode)
+                if (isTypingInformationPrefix) {
+                    // If typing 'information' prefix, show all items from itemsToSuggest
+                    predictions = itemsToSuggest.slice(); // Make a copy of all items
+                    // Add 'Information' suggestion to the beginning, but only if it's not already there
+                    if (!predictions.some(item => item.name === informationSuggestion.name)) {
+                         predictions.unshift(informationSuggestion); // Add to the beginning for immediate visibility
+                    }
+
+                    // Exclude YouTube and Vimeo if 'video' or 'videos' is typed in app selection phase
+                    if (searchPhase === 0 && (val === 'video' || val === 'videos')) {
+                        predictions = predictions.filter(item => item.name !== 'YouTube' && item.name !== 'Vimeo');
+                    }
+
+                    // Exclude WhatsApp if 'chat' is typed in app selection phase
+                    if (searchPhase === 0 && val === 'chat') {
+                        predictions = predictions.filter(item => item.name !== 'WhatsApp');
+                    }
+                } else if (val) {
+                    // Normal predictions based on user input
+                    predictions = getPredictions(val, itemsToSuggest);
+                }
+            }
+
+            // Ensure unique predictions and put 'Information' at the top if it's the specific command typed
+            if (predictions.length > 0) {
+                 predictions = [...new Map(predictions.map(item => [item.name, item])).values()];
+                 // If the exact command 'information' is typed, ensure it's at the top
+                 if (val === 'information' && predictions.some(p => p.name === 'Information')) {
+                     const infoIndex = predictions.findIndex(p => p.name === 'Information');
+                     if (infoIndex !== -1) {
+                         const infoItem = predictions.splice(infoIndex, 1)[0];
+                         predictions.unshift(infoItem);
+                     }
+                 }
+            }
+
+            if (predictions.length === 0) {
+                return; // Nothing to show
+            }
+
+            autocompleteList.innerHTML = predictions.map((item, i) =>
+                `<div class="autocomplete-item${i === selectedIndex ? ' selected' : ''}" data-name="${item.name}">${item.icon || ''} ${item.name}</div>`
+            ).join('');
+            autocompleteList.style.pointerEvents = 'auto'; // Enable if there are predictions
+        }
+
+        function updateDisplay() {
+            let currentPrefix = '';
+            let currentPlaceholder = '';
+
+            if (searchPhase === 0) {
+                currentPlaceholder = 'Type app name (e.g., Google, YouTube)...';
+                if (isInformationMode) {
+                    currentPrefix = 'ℹ️ ';
+                    currentPlaceholder = ' Type app name...'; // Prompt to type app from info list
+                }
+            } else if (searchPhase === 1 && selectedApp) {
+                currentPrefix = selectedApp.icon || '';
+                currentPlaceholder = ' Type sub-tool (e.g., Search, Images, Maps) or "information"...';
+                if (isInformationMode) {
+                    currentPrefix = 'ℹ️ ';
+                    currentPlaceholder = ' Type sub-tool...'; // Prompt to type sub-tool from info list
+                }
+            } else if (searchPhase === 2 && selectedSubTool) {
+                currentPrefix = selectedSubTool.icon || selectedApp.icon || '';
+                currentPlaceholder = ' Type your search query...';
+            } else if (searchPhase === 2 && selectedApp && selectedApp.isDirectSearch) {
+                currentPrefix = selectedApp.icon || '';
+                currentPlaceholder = ' Type your URL or search query...';
+            } else if (searchPhase === 2 && selectedApp && !selectedSubTool) {
+                // For apps like Vimeo, which are not direct search but have no sub-tools, display app icon
+                currentPrefix = selectedApp.icon || '';
+                currentPlaceholder = ' Type your search query...';
+            }
+
+            prefixSpan.textContent = currentPrefix;
+            userInputSpan.textContent = inputValue;
+            cursor.style.display = 'inline-block'; // Ensure cursor is always visible
+
+            // Update line background based on selectedApp/subTool
+            let lineColor = 'linear-gradient(90deg, #00ffe7 0%, #007bff 100%)'; // Default
+            if (selectedSubTool) {
+                 if (selectedApp.name === 'Google' && selectedSubTool.name === 'Search') lineColor = 'linear-gradient(90deg, #4285f4 0%, #34a853 100%)';
+                 else if (selectedApp.name === 'Google' && selectedSubTool.name === 'Images') lineColor = 'linear-gradient(90deg, #ff6600 0%, #ffcc66 100%)';
+                 else if (selectedApp.name === 'Google' && selectedSubTool.name === 'Maps') lineColor = 'linear-gradient(90deg, #34a853 0%, #a8e063 100%)';
+                 else if (selectedApp.name === 'YouTube' && selectedSubTool.name === 'Videos') lineColor = 'linear-gradient(90deg, #ff004c 0%, #ffb700 100%)';
+                 else if (selectedApp.name === 'YouTube' && selectedSubTool.name === 'Channels') lineColor = 'linear-gradient(90deg, #cc0000 0%, #ff3333 100%)';
+                 else if (selectedApp.name === 'Bing' && selectedSubTool.name === 'Search') lineColor = 'linear-gradient(90deg, #7c3aed 0%, #00c3ff 100%)';
+                 else if (selectedApp.name === 'Bing' && selectedSubTool.name === 'Images') lineColor = 'linear-gradient(90deg, #a03cff 0%, #e066ff 100%)';
+            } else if (selectedApp) { // For direct search apps or when no subTool selected yet
+                if (selectedApp.name === 'YouTube') lineColor = 'linear-gradient(90deg, #ff004c 0%, #ffb700 100%)';
+                else if (selectedApp.name === 'Google') lineColor = 'linear-gradient(90deg, #4285f4 0%, #34a853 100%)';
+                else if (selectedApp.name === 'Bing') lineColor = 'linear-gradient(90deg, #7c3aed 0%, #00c3ff 100%)';
+                else if (selectedApp.name === 'DuckDuckGo') lineColor = 'linear-gradient(90deg, #ff9900 0%, #6bffb8 100%)';
+                else if (selectedApp.name === 'Pexels') lineColor = 'linear-gradient(90deg, #00cba9 0%, #b2fefa 100%)';
+                else if (selectedApp.name === 'Pixabay') lineColor = 'linear-gradient(90deg, #ffb347 0%, #ffcc33 100%)';
+                else if (selectedApp.name === 'WebStarts Help') lineColor = 'linear-gradient(90deg, #00bfff 0%, #e0eafc 100%)';
+                else if (selectedApp.name === 'Vimeo') lineColor = 'linear-gradient(90deg, #1ab7ea 0%, #283e51 100%)';
+                else if (selectedApp.name === 'Wikipedia') lineColor = 'linear-gradient(90deg, #f5de50 0%, #fffbe6 100%)';
+                else if (selectedApp.name === 'X (formerly Twitter)') lineColor = 'linear-gradient(90deg, #1da1f2 0%, #14171a 100%)';
+                else if (selectedApp.name === 'Reddit') lineColor = 'linear-gradient(90deg, #ff4500 0%, #ffe5d9 100%)';
+                else if (selectedApp.name === 'Amazon') lineColor = 'linear-gradient(90deg, #ff9900 0%, #fffbe6 100%)';
+                else if (selectedApp.name === 'Stack Overflow') lineColor = 'linear-gradient(90deg, #f48024 0%, #fffbe6 100%)';
+                else if (selectedApp.name === 'Spotify') lineColor = 'linear-gradient(90deg, #1db954 0%, #191414 100%)';
+                else if (selectedApp.name === 'Unsplash') lineColor = 'linear-gradient(90deg, #232526 0%, #414345 100%)';
+            }
+            document.querySelector('.futuristic-line').style.background = lineColor;
+
+            showAutocomplete();
+        }
+
+        function resetToAppSelection() {
+            searchPhase = 0;
+            selectedApp = APPS[0];
+            selectedSubTool = null;
+            selectedIndex = -1;
+            inputValue = '';
+            updateDisplay();
+            window._backspaceCount = 0;
+            isInformationMode = false; // Reset info mode
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
+
+            if (!window._backspaceCount) window._backspaceCount = 0;
+
+            if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && e.key !== 'Enter') {
+                inputValue += e.key;
+                updateDisplay();
+                window._backspaceCount = 0;
+                isInformationMode = false; // Exit info mode when typing normally
+            } else if (e.key === 'Backspace') {
+                if (inputValue.length === 0) {
+                    window._backspaceCount = (window._backspaceCount || 0) + 1;
+                    if (window._backspaceCount >= 2) {
+                        if (searchPhase === 2) {
+                            // If in query input phase and selected app is a direct search app (like URL)
+                            // or if coming from a sub-tool (selectedSubTool is not null)
+                            if (selectedApp && selectedApp.isDirectSearch || selectedSubTool) {
+                                resetToAppSelection(); // Go back to app selection
+                            } else { // If not a direct search app and no sub-tool selected (shouldn't happen with current logic)
+                                searchPhase = 1; // Fallback: go back to sub-tool selection
+                                inputValue = '';
+                                selectedIndex = -1;
+                                selectedSubTool = null; // Reset sub-tool
+                                updateDisplay();
+                            }
+                        } else if (searchPhase === 1) { // Go back from sub-tool selection to app selection
+                            resetToAppSelection();
+                        }
+                        window._backspaceCount = 0;
+                        return;
+                    }
+                } else {
+                    inputValue = inputValue.slice(0, -1);
+                    updateDisplay();
+                    window._backspaceCount = 0;
+                    isInformationMode = false; // Exit info mode when backspacing normally
+                }
+            } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                let itemsToSuggest = [];
+                if (searchPhase === 0) {
+                    itemsToSuggest = APPS;
+                } else if (searchPhase === 1 && selectedApp && selectedApp.subTools) {
+                    itemsToSuggest = selectedApp.subTools;
+                }
+
+                const predictions = getPredictions(inputValue.trim(), itemsToSuggest);
+                if (predictions.length > 0) {
+                    if (e.key === 'ArrowDown') {
+                        selectedIndex = (selectedIndex + 1) % predictions.length;
+                    } else {
+                        selectedIndex = (selectedIndex - 1 + predictions.length) % predictions.length;
+                    }
+                    showAutocomplete();
+                    e.preventDefault();
+                    isInformationMode = false; // Exit info mode when navigating suggestions
+                }
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                let currentItems = [];
+                if (searchPhase === 0) {
+                    currentItems = APPS;
+                } else if (searchPhase === 1 && selectedApp && selectedApp.subTools) {
+                    currentItems = selectedApp.subTools;
+                }
+
+                let selectedItem = null;
+                const val = inputValue.trim();
+
+                const predictions = getPredictions(val, currentItems);
+
+                if (selectedIndex >= 0 && predictions[selectedIndex]) {
+                    selectedItem = predictions[selectedIndex];
+                } else if (predictions.length > 0) {
+                    selectedItem = predictions[0];
+                } else if (val && currentItems.length > 0) { // Fallback for exact type if no predictions
+                    selectedItem = currentItems.find(item => item.name.toLowerCase() === val.toLowerCase());
+                }
+
+                // If the selected autocomplete item is 'Information', do nothing
+                if (selectedItem && selectedItem.name === 'Information') {
+                    return; // Prevent any further action for the 'Information' autocomplete item
+                }
+
+                // Handle 'information' command explicitly when typed
+                if (val.toLowerCase() === 'information') {
+                    isInformationMode = true; // Activate info mode
+                    inputValue = ''; // Clear input so user can type selection
+                    selectedIndex = -1;
+                    updateDisplay(); // Trigger display update to show all apps/sub-tools
+                    return;
+                }
+
+                if (searchPhase === 0) { // App selection phase
+                    if (selectedItem) {
+                        selectedApp = selectedItem;
+                        if (selectedApp.name === 'URL') {
+                            // Special handling for URL app: go to query input phase to allow URL validation
+                            searchPhase = 2;
+                            inputValue = '';
+                            selectedIndex = -1;
+                            updateDisplay();
+                        } else if (selectedApp.isDirectSearch) {
+                            // For other direct search apps, open the URL immediately
+                            const searchUrl = selectedApp.searchUrl.replace('{query}', '');
+                            if (searchUrl) {
+                                window.open(searchUrl, '_blank');
+                                resetToAppSelection();
+                            }
+                        } else if (selectedApp.subTools && selectedApp.subTools.length > 0) {
+                            searchPhase = 1; // Move to sub-tool selection
+                            inputValue = ''; // Clear input for sub-tool
+                            selectedIndex = -1;
+                            updateDisplay();
+                        } else if (!selectedApp.isDirectSearch && !selectedApp.subTools) {
+                            // For apps that are not direct search but have no sub-tools, go directly to query input.
+                            searchPhase = 2;
+                            inputValue = '';
+                            selectedIndex = -1;
+                            updateDisplay();
+                        }
+                    }
+                } else if (searchPhase === 1 && selectedApp) { // Sub-tool selection phase
+                    if (selectedItem) {
+                        selectedSubTool = selectedItem;
+                        searchPhase = 2;
+                        inputValue = '';
+                        selectedIndex = -1;
+                        updateDisplay();
+                    } else if (selectedApp.name === 'YouTube') {
+                        const queryFromPhase1 = inputValue.trim(); // This inputValue is what the user typed in phase 1
+                        if (!queryFromPhase1) {
+                            // If no input, default to Videos
+                            selectedSubTool = selectedApp.subTools.find(tool => tool.name === 'Videos');
+                        } else {
+                            // Intelligent decision based on input in phase 1
+                            const lowerCaseQuery = queryFromPhase1.toLowerCase();
+                            if (lowerCaseQuery.startsWith('@') || !lowerCaseQuery.includes(' ')) {
+                                selectedSubTool = selectedApp.subTools.find(tool => tool.name === 'Channel');
+                            } else {
+                                selectedSubTool = selectedApp.subTools.find(tool => tool.name === 'Videos');
+                            }
+                        }
+
+                        if (selectedSubTool) {
+                            searchPhase = 2;
+                            inputValue = queryFromPhase1; // Keep the input value as the query
+                            selectedIndex = -1;
+                            updateDisplay();
+                        } else {
+                            console.warn("YouTube default sub-tool not found.");
+                            resetToAppSelection();
+                        }
+                    } else if (selectedApp.subTools && selectedApp.subTools.length > 0) {
+                        // For other apps with sub-tools, if no explicit sub-tool selected, default to the first sub-tool
+                        selectedSubTool = selectedApp.subTools[0];
+                        searchPhase = 2;
+                        inputValue = ''; // Clear input for query from phase 1
+                        selectedIndex = -1;
+                        updateDisplay();
+                    } else {
+                        // Fallback for unexpected scenarios (e.g., app with no sub-tools but not direct search,
+                        // or no valid default behavior defined)
+                        console.warn("No sub-tool selected and no default search URL or sub-tools for current app.");
+                        resetToAppSelection();
+                    }
+                } else if (searchPhase === 2) { // Query input phase
+                    const query = inputValue.trim();
+                    if (!query) return;
+                    let searchUrl = '';
+
+                    if (selectedApp && selectedApp.name === 'URL') {
+                        // Simple URL validation regex. This isn't exhaustive but covers common cases.
+                        const urlRegex = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
+
+                        if (urlRegex.test(query)) {
+                            let finalUrl = query;
+                            if (!query.startsWith('http://') && !query.startsWith('https://')) {
+                                finalUrl = 'https://' + query;
+                            }
+                            window.open(finalUrl, '_blank');
+                            resetToAppSelection();
+                            return; // Stop further processing
+                        } else {
+                            // If not a valid URL, perform a Google search
+                            searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+                        }
+                    } else if (selectedApp && selectedApp.name === 'YouTube' && selectedSubTool && selectedSubTool.name === 'Channel') {
+                        const lowerCaseQuery = query.toLowerCase();
+                        // Heuristic: if it looks like a direct channel handle or a simple name, try direct link
+                        // Direct channel handles often start with '@' or are simple alphanumeric strings without spaces.
+                        if (lowerCaseQuery.startsWith('@') || !lowerCaseQuery.includes(' ')) {
+                            searchUrl = `https://www.youtube.com/@${encodeURIComponent(query)}`;
+                        } else {
+                            // Fallback to search if it doesn't look like a direct handle
+                            searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&sp=EgIQAg%253D%253D`;
+                        }
+                    } else if (selectedSubTool && selectedSubTool.searchUrl) {
+                        searchUrl = selectedSubTool.searchUrl.replace('{query}', encodeURIComponent(query));
+                    } else if (selectedApp && !selectedSubTool && selectedApp.searchUrl) {
+                        // For apps that are search bars without sub-tools (like DuckDuckGo, Pexels, Pixabay, Vimeo, WebStarts Help, Amazon, Wikipedia, X)
+                        searchUrl = selectedApp.searchUrl.replace('{query}', encodeURIComponent(query));
+                    }
+
+                    if (searchUrl) {
+                        window.open(searchUrl, '_blank');
+                        resetToAppSelection();
+                    }
+                }
+            }
+        });
+
+        autocompleteList.addEventListener('mousedown', function(e) {
+            if (e.target.classList.contains('autocomplete-item')) {
+                const itemName = e.target.getAttribute('data-name');
+                let selectedItem = null;
+
+                if (searchPhase === 0) {
+                    selectedItem = APPS.find(app => app.name === itemName);
+                    if (!selectedItem && itemName === 'Information') { // Handle clicking 'Information' suggestion
+                        isInformationMode = true; // Activate info mode
+                        inputValue = ''; // Clear input
+                        selectedIndex = -1;
+                        updateDisplay(); // Show all apps
+                        return; 
+                    }
+                } else if (searchPhase === 1 && selectedApp && selectedApp.subTools) {
+                    selectedItem = selectedApp.subTools.find(sub => sub.name === itemName);
+                    if (!selectedItem && itemName === 'Information') { // Handle clicking 'Information' suggestion
+                        isInformationMode = true; // Activate info mode
+                        inputValue = ''; // Clear input
+                        selectedIndex = -1;
+                        updateDisplay(); // Show all sub-tools
+                        return; 
+                    }
+                }
+
+                if (searchPhase === 0) { // App selection phase
+                    if (selectedItem) {
+                        selectedApp = selectedItem;
+                        if (selectedApp.name === 'URL') {
+                            // Special handling for URL app: go to query input phase to allow URL validation
+                            searchPhase = 2;
+                            inputValue = '';
+                            selectedIndex = -1;
+                            updateDisplay();
+                        } else if (selectedApp.isDirectSearch) {
+                            // For other direct search apps, open the URL immediately
+                            const searchUrl = selectedApp.searchUrl.replace('{query}', '');
+                            if (searchUrl) {
+                                window.open(searchUrl, '_blank');
+                                resetToAppSelection();
+                            }
+                        } else if (selectedApp.subTools && selectedApp.subTools.length > 0) {
+                            searchPhase = 1; // Move to sub-tool selection
+                            inputValue = ''; // Clear input for sub-tool
+                            selectedIndex = -1;
+                            updateDisplay();
+                        } else if (!selectedApp.isDirectSearch && !selectedApp.subTools) {
+                            // For apps that are not direct search but have no sub-tools, go directly to query input.
+                            searchPhase = 2;
+                            inputValue = '';
+                            selectedIndex = -1;
+                            updateDisplay();
+                        }
+                    }
+                } else if (searchPhase === 1 && selectedApp) { // Sub-tool selection phase
+                    if (selectedItem) {
+                        selectedSubTool = selectedItem;
+                        searchPhase = 2;
+                        inputValue = '';
+                        selectedIndex = -1;
+                        updateDisplay();
+                    } else if (selectedApp.name === 'YouTube') {
+                        const queryFromPhase1 = inputValue.trim(); // This inputValue is what the user typed in phase 1
+                        if (!queryFromPhase1) {
+                            // If no input, default to Videos
+                            selectedSubTool = selectedApp.subTools.find(tool => tool.name === 'Videos');
+                        } else {
+                            // Intelligent decision based on input in phase 1
+                            const lowerCaseQuery = queryFromPhase1.toLowerCase();
+                            if (lowerCaseQuery.startsWith('@') || !lowerCaseQuery.includes(' ')) {
+                                selectedSubTool = selectedApp.subTools.find(tool => tool.name === 'Channel');
+                            } else {
+                                selectedSubTool = selectedApp.subTools.find(tool => tool.name === 'Videos');
+                            }
+                        }
+
+                        if (selectedSubTool) {
+                            searchPhase = 2;
+                            inputValue = queryFromPhase1; // Keep the input value as the query
+                            selectedIndex = -1;
+                            updateDisplay();
+                        } else {
+                            console.warn("YouTube default sub-tool not found.");
+                            resetToAppSelection();
+                        }
+                    } else if (selectedApp.subTools && selectedApp.subTools.length > 0) {
+                        // For other apps with sub-tools, if no explicit sub-tool selected, default to the first sub-tool
+                        selectedSubTool = selectedApp.subTools[0];
+                        searchPhase = 2;
+                        inputValue = ''; // Clear input for query from phase 1
+                        selectedIndex = -1;
+                        updateDisplay();
+                    } else {
+                        // Fallback for unexpected scenarios (e.g., app with no sub-tools but not direct search,
+                        // or no valid default behavior defined)
+                        console.warn("No sub-tool selected and no default search URL or sub-tools for current app.");
+                        resetToAppSelection();
+                    }
+                }
+
+                // Reset selectedIndex after an item is clicked/selected
+                selectedIndex = -1;
+            }
+        });
+
+        updateDisplay();
+    </script>
+</body>
+</html> 

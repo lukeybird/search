@@ -70,6 +70,41 @@
             box-shadow: 0 0 16px #00ffe7, 0 0 32px #007bff44;
             margin-bottom: 32px;
         }
+        .crypto-prices {
+            display: none;
+            width: 100%;
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 15px;
+            background: #181828cc;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px #00ffe733;
+        }
+        .crypto-price-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            margin: 5px 0;
+            color: #fff;
+            font-size: 1.1rem;
+        }
+        .crypto-price-item .price {
+            color: #00ffe7;
+        }
+        .crypto-price-item .market-cap {
+            color: #ffb700;
+            font-size: 0.9rem;
+        }
+        .crypto-price-item .change {
+            font-size: 0.9rem;
+        }
+        .crypto-price-item .change.positive {
+            color: #00ff00;
+        }
+        .crypto-price-item .change.negative {
+            color: #ff4444;
+        }
         .autocomplete-list {
             position: absolute;
             left: 0;
@@ -113,6 +148,7 @@
             <div class="typed-text" id="typedText"><span class="prefix" id="prefixSpan"></span><span id="userInputSpan"></span><span class="blinking-cursor" id="cursor">|</span></div>
             <div class="futuristic-line"></div>
             <div id="autocompleteList"></div>
+            <div id="cryptoPrices" class="crypto-prices"></div>
         </div>
     </div>
     <script>
@@ -142,6 +178,12 @@
             { name: 'Spotify', icon: '🎵', keywords: ['spotify', 'music', 'songs'], isDirectSearch: false, searchUrl: 'https://open.spotify.com/search/{query}' },
             { name: 'Unsplash', icon: '🌄', keywords: ['unsplash', 'photos', 'images'], isDirectSearch: false, searchUrl: 'https://unsplash.com/s/photos/{query}' },
             { name: 'GitHub', icon: '🐙', keywords: ['github', 'git', 'code'], isDirectSearch: false, searchUrl: 'https://github.com/search?q={query}&type=users' },
+            { name: 'Instagram', icon: '📸', keywords: ['instagram', 'ig', 'social'], isDirectSearch: false, searchUrl: 'https://www.instagram.com/{query}/', fallbackSearchUrl: 'https://www.instagram.com/' },
+            { name: 'Admin', icon: '👨‍💼', keywords: ['admin', 'login', 'superadmin'], isDirectSearch: true, searchUrl: 'https://www.webstarts.com/superadmin/editcustomer.php?cid=10292866' },
+            { name: 'HelpScout', icon: '📞', keywords: ['helpscout', 'help', 'support'], isDirectSearch: true, searchUrl: 'https://secure.helpscout.net/inboxes/55bed08bcbf75a4e/views/122681' },
+            { name: 'ICANN Lookup', icon: '🔍', keywords: ['icann', 'lookup', 'domain'], isDirectSearch: true, searchUrl: 'https://lookup.icann.org/en' },
+            { name: 'OpenSRS', icon: '🔐', keywords: ['opensrs', 'manage', 'domain'], isDirectSearch: true, searchUrl: 'https://manage.opensrs.com/?_gl=1*8r7dxz*_ga*MTQ2NTM3ODY0NC4xNzQ1OTM1NzI0*_ga_PBN11P0JKY*czE3NDg5NzUyNjAkbzIwJGcxJHQxNzQ4OTc1MjYwJGo2MCRsMCRoNjMwOTEzNTIz*_ga_02CRG8R7BW*czE3NDg5NzUyNjAkbzIwJGcxJHQxNzQ4OTc1MjYwJGo2MCRsMCRoMA..#!/domain/prod-tucows/reseller/webstarts/domain/transfer_out/15267875/get' },
+            { name: 'CoinMarketCap', icon: '💰', keywords: ['coinmarketcap', 'crypto', 'coins'], isDirectSearch: false, searchUrl: 'https://coinmarketcap.com/currencies/{query}/' },
             { name: 'WhatsApp', icon: '💬', keywords: ['whatsapp', 'wa', 'chat', 'messages'], isDirectSearch: true, searchUrl: 'https://web.whatsapp.com/' },
             { name: 'Messenger', icon: '✉️', keywords: ['messenger', 'fb messenger', 'messages'], isDirectSearch: true, searchUrl: 'https://www.messenger.com/' },
             { name: 'Facebook', icon: '🔵', keywords: ['facebook', 'fb', 'social'], isDirectSearch: true, searchUrl: 'https://www.facebook.com/' },
@@ -282,16 +324,23 @@
             userInputSpan.textContent = inputValue;
             cursor.style.display = 'inline-block'; // Ensure cursor is always visible
 
+            // Handle crypto prices display
+            if (selectedApp && selectedApp.name === 'CoinMarketCap') {
+                showCryptoPrices();
+            } else {
+                hideCryptoPrices();
+            }
+
             // Update line background based on selectedApp/subTool
             let lineColor = 'linear-gradient(90deg, #00ffe7 0%, #007bff 100%)'; // Default
             if (selectedSubTool) {
-                 if (selectedApp.name === 'Google' && selectedSubTool.name === 'Search') lineColor = 'linear-gradient(90deg, #4285f4 0%, #34a853 100%)';
-                 else if (selectedApp.name === 'Google' && selectedSubTool.name === 'Images') lineColor = 'linear-gradient(90deg, #ff6600 0%, #ffcc66 100%)';
-                 else if (selectedApp.name === 'Google' && selectedSubTool.name === 'Maps') lineColor = 'linear-gradient(90deg, #34a853 0%, #a8e063 100%)';
-                 else if (selectedApp.name === 'YouTube' && selectedSubTool.name === 'Videos') lineColor = 'linear-gradient(90deg, #ff004c 0%, #ffb700 100%)';
-                 else if (selectedApp.name === 'YouTube' && selectedSubTool.name === 'Channels') lineColor = 'linear-gradient(90deg, #cc0000 0%, #ff3333 100%)';
-                 else if (selectedApp.name === 'Bing' && selectedSubTool.name === 'Search') lineColor = 'linear-gradient(90deg, #7c3aed 0%, #00c3ff 100%)';
-                 else if (selectedApp.name === 'Bing' && selectedSubTool.name === 'Images') lineColor = 'linear-gradient(90deg, #a03cff 0%, #e066ff 100%)';
+                if (selectedApp.name === 'Google' && selectedSubTool.name === 'Search') lineColor = 'linear-gradient(90deg, #4285f4 0%, #34a853 100%)';
+                else if (selectedApp.name === 'Google' && selectedSubTool.name === 'Images') lineColor = 'linear-gradient(90deg, #ff6600 0%, #ffcc66 100%)';
+                else if (selectedApp.name === 'Google' && selectedSubTool.name === 'Maps') lineColor = 'linear-gradient(90deg, #34a853 0%, #a8e063 100%)';
+                else if (selectedApp.name === 'YouTube' && selectedSubTool.name === 'Videos') lineColor = 'linear-gradient(90deg, #ff004c 0%, #ffb700 100%)';
+                else if (selectedApp.name === 'YouTube' && selectedSubTool.name === 'Channels') lineColor = 'linear-gradient(90deg, #cc0000 0%, #ff3333 100%)';
+                else if (selectedApp.name === 'Bing' && selectedSubTool.name === 'Search') lineColor = 'linear-gradient(90deg, #7c3aed 0%, #00c3ff 100%)';
+                else if (selectedApp.name === 'Bing' && selectedSubTool.name === 'Images') lineColor = 'linear-gradient(90deg, #a03cff 0%, #e066ff 100%)';
             } else if (selectedApp) { // For direct search apps or when no subTool selected yet
                 if (selectedApp.name === 'YouTube') lineColor = 'linear-gradient(90deg, #ff004c 0%, #ffb700 100%)';
                 else if (selectedApp.name === 'Google') lineColor = 'linear-gradient(90deg, #4285f4 0%, #34a853 100%)';
@@ -641,6 +690,67 @@
                 selectedIndex = -1;
             }
         });
+
+        function showCryptoPrices() {
+            const cryptoPrices = document.getElementById('cryptoPrices');
+            cryptoPrices.style.display = 'block';
+            fetchCryptoPrices();
+        }
+
+        function hideCryptoPrices() {
+            const cryptoPrices = document.getElementById('cryptoPrices');
+            cryptoPrices.style.display = 'none';
+        }
+
+        async function fetchCryptoPrices() {
+            const cryptoPrices = document.getElementById('cryptoPrices');
+            const cryptos = ['bitcoin', 'ethereum', 'chainlink', 'hyperliquid', 'solana'];
+            
+            try {
+                const response = await fetch(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${cryptos.join(',')}&order=market_cap_desc&per_page=100&page=1&sparkline=false&price_change_percentage=24h`);
+                const data = await response.json();
+                
+                cryptoPrices.innerHTML = data.map(crypto => {
+                    const price = crypto.current_price || 'N/A';
+                    const change = crypto.price_change_percentage_24h || 0;
+                    const marketCap = crypto.market_cap || 0;
+                    const changeClass = change >= 0 ? 'positive' : 'negative';
+                    const changeSymbol = change >= 0 ? '↑' : '↓';
+                    
+                    // Format market cap to trillions/billions/millions
+                    let formattedMarketCap;
+                    if (marketCap >= 1e12) {
+                        formattedMarketCap = `$${(marketCap / 1e12).toFixed(2)}T`;
+                    } else if (marketCap >= 1e9) {
+                        formattedMarketCap = `$${(marketCap / 1e9).toFixed(2)}B`;
+                    } else if (marketCap >= 1e6) {
+                        formattedMarketCap = `$${(marketCap / 1e6).toFixed(2)}M`;
+                    } else {
+                        formattedMarketCap = `$${marketCap.toLocaleString()}`;
+                    }
+                    
+                    // Map crypto IDs to their CoinMarketCap URLs
+                    const cmcUrls = {
+                        'bitcoin': 'https://coinmarketcap.com/currencies/bitcoin/',
+                        'ethereum': 'https://coinmarketcap.com/currencies/ethereum/',
+                        'chainlink': 'https://coinmarketcap.com/currencies/chainlink/',
+                        'hyperliquid': 'https://coinmarketcap.com/currencies/hyperliquid/',
+                        'solana': 'https://coinmarketcap.com/currencies/solana/'
+                    };
+                    
+                    return `
+                        <div class="crypto-price-item">
+                            <a href="${cmcUrls[crypto.id]}" target="_blank" class="name" style="color: #fff; text-decoration: none; cursor: pointer;">${crypto.name}</a>
+                            <span class="price">$${price.toLocaleString()}</span>
+                            <span class="market-cap">${formattedMarketCap}</span>
+                            <span class="change ${changeClass}">${changeSymbol} ${Math.abs(change).toFixed(2)}%</span>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                cryptoPrices.innerHTML = '<div class="crypto-price-item">Error fetching prices</div>';
+            }
+        }
 
         updateDisplay();
     </script>

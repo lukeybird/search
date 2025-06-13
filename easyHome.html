@@ -15,6 +15,58 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+        .art-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            opacity: 0;
+            transition: opacity 2s ease-in-out;
+            z-index: -2; /* Move behind the overlay */
+            background-color: #0a0a12; /* Fallback color */
+        }
+        .art-background.active {
+            opacity: 0.5; /* Increased from 0.15 to 0.3 */
+        }
+        .art-background::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(10, 10, 18, 0.7); /* Reduced from 0.85 to 0.7 */
+            z-index: -1;
+        }
+        .light-orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(1px);
+            opacity: 0.9;
+            animation: float 8s infinite cubic-bezier(0.45, 0.05, 0.55, 0.95);
+            z-index: -1; /* Ensure orbs are above the art background */
+            box-shadow: 0 0 12px currentColor, 0 0 20px currentColor;
+            bottom: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            will-change: transform;
+        }
+        @keyframes float {
+            0% {
+                transform: translateY(0) translateX(-50%);
+                opacity: 0.8;
+            }
+            100% {
+                transform: translateY(-32vh) translateX(calc(-50% + 20px));
+                opacity: 0;
+            }
         }
         .futuristic-container {
             width: 100vw;
@@ -23,6 +75,8 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            position: relative;
+            z-index: 1;
         }
         .input-line-wrapper {
             position: relative;
@@ -132,6 +186,37 @@
             background: #00ffe7;
             color: #181828;
         }
+        .page-indicator {
+            position: absolute;
+            bottom: -2rem;
+            left: 0;
+            color: #00ffe7;
+            font-size: 1rem;
+            font-family: 'Orbitron', 'Share Tech Mono', monospace;
+            opacity: 0.8;
+        }
+        .page-navigation {
+            position: absolute;
+            bottom: -2rem;
+            right: 0;
+            display: flex;
+            gap: 1rem;
+        }
+        .page-arrow {
+            color: #00ffe7;
+            font-size: 1.2rem;
+            cursor: pointer;
+            opacity: 0.8;
+            transition: opacity 0.2s;
+            user-select: none;
+        }
+        .page-arrow:hover {
+            opacity: 1;
+        }
+        .page-arrow.disabled {
+            opacity: 0.3;
+            cursor: default;
+        }
         @media (max-width: 600px) {
             .typed-text, .blinking-cursor {
                 font-size: 1.3rem;
@@ -140,9 +225,63 @@
                 max-width: 98vw;
             }
         }
+        #artBackgrounds {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -2;
+            pointer-events: none;
+        }
+        .artwork-info {
+            display: none;
+            margin-top: 20px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            color: #fff;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .artwork-info.active {
+            display: block;
+        }
+        .artwork-image {
+            width: 100%;
+            max-width: 600px;
+            height: auto;
+            border-radius: 8px;
+            margin: 20px auto;
+            display: block;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+        }
+        .artwork-details {
+            text-align: left;
+            line-height: 1.6;
+        }
+        .artwork-title {
+            font-size: 1.8em;
+            margin-bottom: 10px;
+            color: #fff;
+        }
+        .artwork-artist {
+            font-size: 1.2em;
+            color: #aaa;
+            margin-bottom: 15px;
+        }
+        .artwork-description {
+            font-size: 1em;
+            color: #ddd;
+            margin-bottom: 15px;
+        }
     </style>
 </head>
 <body>
+    <div id="artBackgrounds"></div>
+    <div id="lightOrbs"></div>
     <div class="futuristic-container">
         <div class="input-line-wrapper">
             <div class="typed-text" id="typedText"><span class="prefix" id="prefixSpan"></span><span id="userInputSpan"></span><span class="blinking-cursor" id="cursor">|</span></div>
@@ -150,6 +289,11 @@
             <div id="autocompleteList"></div>
             <div id="cryptoPrices" class="crypto-prices"></div>
         </div>
+    </div>
+    <div class="container">
+        <div id="display">🔍 Search</div>
+        <input type="text" id="searchBar" placeholder="Type to search...">
+        <div id="artworkInfo" class="artwork-info"></div>
     </div>
     <script>
         const APPS = [
@@ -184,12 +328,159 @@
             { name: 'ICANN Lookup', icon: '🔍', keywords: ['icann', 'lookup', 'domain'], isDirectSearch: true, searchUrl: 'https://lookup.icann.org/en' },
             { name: 'OpenSRS', icon: '🔐', keywords: ['opensrs', 'manage', 'domain'], isDirectSearch: true, searchUrl: 'https://manage.opensrs.com/?_gl=1*8r7dxz*_ga*MTQ2NTM3ODY0NC4xNzQ1OTM1NzI0*_ga_PBN11P0JKY*czE3NDg5NzUyNjAkbzIwJGcxJHQxNzQ4OTc1MjYwJGo2MCRsMCRoNjMwOTEzNTIz*_ga_02CRG8R7BW*czE3NDg5NzUyNjAkbzIwJGcxJHQxNzQ4OTc1MjYwJGo2MCRsMCRoMA..#!/domain/prod-tucows/reseller/webstarts/domain/transfer_out/15267875/get' },
             { name: 'CoinMarketCap', icon: '💰', keywords: ['coinmarketcap', 'crypto', 'coins'], isDirectSearch: false, searchUrl: 'https://coinmarketcap.com/currencies/{query}/' },
-            { name: 'WhatsApp', icon: '💬', keywords: ['whatsapp', 'wa', 'chat', 'messages'], isDirectSearch: true, searchUrl: 'https://web.whatsapp.com/' },
-            { name: 'Messenger', icon: '✉️', keywords: ['messenger', 'fb messenger', 'messages'], isDirectSearch: true, searchUrl: 'https://www.messenger.com/' },
+            { name: 'Medium', icon: '📝', keywords: ['medium', 'blog', 'articles', 'writing', 'read'], isDirectSearch: false, searchUrl: 'https://medium.com/search?q={query}' },
+            { name: 'TikTok', icon: '🎵', keywords: ['tiktok', 'tiktoks', 'video', 'videos', 'short', 'shorts'], isDirectSearch: false, searchUrl: 'https://www.tiktok.com/search?q={query}' },
+            { name: 'WhatsApp', icon: '💬', keywords: ['whatsapp', 'whats', 'wa', 'message', 'text'], isDirectSearch: true, searchUrl: 'https://web.whatsapp.com/' },
+            { name: 'Messenger', icon: '✉️', keywords: ['messenger', 'fb messenger', 'facebook messenger', 'message', 'text'], isDirectSearch: true, searchUrl: 'https://www.messenger.com/' },
             { name: 'Facebook', icon: '🔵', keywords: ['facebook', 'fb', 'social'], isDirectSearch: true, searchUrl: 'https://www.facebook.com/' },
             { name: 'Screenshare', icon: '📞', keywords: ['video call', 'call', 'meeting', 'screenshare'], isDirectSearch: true, searchUrl: 'https://share.jarmetals.com/' },
             { name: 'ChatGPT', icon: '🤖', keywords: ['chatgpt', 'gpt', 'ai', 'chatbot'], isDirectSearch: true, searchUrl: 'https://chat.openai.com/' },
             { name: 'Grok', icon: '🧠', keywords: ['grok', 'xai', 'ai'], isDirectSearch: true, searchUrl: 'https://grok.x.ai/' },
+            { name: 'Gomez', icon: '🎭', keywords: ['gomez', 'g', 'image'], isDirectSearch: true, searchUrl: 'https://s.yimg.com/ny/api/res/1.2/ZXjjtHhSAO0wgIKs4dHCjQ--/YXBwaWQ9aGlnaGxhbmRlcjt3PTEyNDI7aD0xNTE1/https://media.zenfs.com/en/people_218/703b5554464b7787160c53df37bc491c' },
+            {
+                name: "The Starry Night",
+                emoji: "🌌",
+                icon: "🌌",
+                keywords: ["starry", "night", "van gogh", "art", "painting", "the starry night", "starry night"],
+                searchUrl: "https://www.google.com/search?q=The+Starry+Night+Van+Gogh",
+                isDirectSearch: true,
+                isSubTool: false,
+                subTools: [],
+                info: {
+                    title: "The Starry Night",
+                    artist: "Vincent van Gogh",
+                    year: "1889",
+                    medium: "Oil on canvas",
+                    location: "Museum of Modern Art, New York",
+                    description: "The Starry Night is one of Vincent van Gogh's most famous works. Painted in 1889 while the artist was staying at the Saint-Paul-de-Mausole asylum, it depicts the view from his east-facing window, just before sunrise. The painting shows van Gogh's unique style with its swirling brushstrokes and vibrant colors, capturing both the beauty and turbulence of the night sky. The cypress tree in the foreground, reaching toward the heavens, is thought to represent the bridge between earth and sky, while the village below represents the connection between the physical and spiritual worlds."
+                }
+            },
+            {
+                name: "The Persistence of Memory",
+                emoji: "⏰",
+                icon: "⏰",
+                keywords: ["dali", "melting", "clocks", "surreal", "art", "painting", "the persistence of memory", "persistence of memory"],
+                searchUrl: "https://www.google.com/search?q=The+Persistence+of+Memory+Dali",
+                isDirectSearch: true,
+                isSubTool: false,
+                subTools: [],
+                info: {
+                    title: "The Persistence of Memory",
+                    artist: "Salvador Dalí",
+                    year: "1931",
+                    medium: "Oil on canvas",
+                    location: "Museum of Modern Art, New York",
+                    description: "The Persistence of Memory is one of Dalí's most recognizable works. The painting shows melting pocket watches in a desert landscape, symbolizing the relativity of space and time. The central melted clock draped over a distorted face is thought to be a self-portrait of Dalí. The painting exemplifies Dalí's unique approach to Surrealism, combining precise realism with dreamlike imagery to create a world where the normal laws of physics don't apply."
+                }
+            },
+            {
+                name: "The Scream",
+                emoji: "😱",
+                icon: "😱",
+                keywords: ["munch", "scream", "expressionism", "art", "painting", "the scream"],
+                searchUrl: "https://www.google.com/search?q=The+Scream+Munch",
+                isDirectSearch: true,
+                isSubTool: false,
+                subTools: [],
+                info: {
+                    title: "The Scream",
+                    artist: "Edvard Munch",
+                    year: "1893",
+                    medium: "Oil, tempera, and pastel on cardboard",
+                    location: "National Gallery, Oslo",
+                    description: "The Scream is one of the most iconic images in art history. The painting depicts a figure with an agonized expression against a landscape with a tumultuous orange sky. Munch created several versions of this work, which has become a universal symbol of anxiety and existential dread. The painting's emotional intensity and innovative use of color and line made it a precursor to Expressionism."
+                }
+            },
+            {
+                name: "Girl with a Pearl Earring",
+                emoji: "👧",
+                icon: "👧",
+                keywords: ["vermeer", "pearl", "earring", "dutch", "art", "painting", "girl with a pearl earring", "pearl earring"],
+                searchUrl: "https://www.google.com/search?q=Girl+with+a+Pearl+Earring+Vermeer",
+                isDirectSearch: true,
+                isSubTool: false,
+                subTools: [],
+                info: {
+                    title: "Girl with a Pearl Earring",
+                    artist: "Johannes Vermeer",
+                    year: "1665",
+                    medium: "Oil on canvas",
+                    location: "Mauritshuis, The Hague",
+                    description: "Often called the 'Mona Lisa of the North,' this painting is one of Vermeer's most famous works. The painting shows a young woman in an exotic dress, turning towards the viewer with a mysterious expression. The pearl earring, rendered with just a few strokes of white paint, creates a striking focal point. The painting's intimate scale and the subject's direct gaze create an engaging connection with the viewer."
+                }
+            },
+            {
+                name: "The Great Wave",
+                emoji: "🌊",
+                icon: "🌊",
+                keywords: ["hokusai", "wave", "japanese", "print", "art", "painting", "the great wave", "great wave", "the great wave off kanagawa", "great wave off kanagawa"],
+                searchUrl: "https://www.google.com/search?q=The+Great+Wave+Hokusai",
+                isDirectSearch: true,
+                isSubTool: false,
+                subTools: [],
+                info: {
+                    title: "The Great Wave off Kanagawa",
+                    artist: "Katsushika Hokusai",
+                    year: "1831",
+                    medium: "Woodblock print",
+                    location: "Multiple collections worldwide",
+                    description: "This iconic woodblock print is part of Hokusai's series 'Thirty-six Views of Mount Fuji.' The composition shows a massive wave about to crash over boats, with Mount Fuji visible in the background. The print's dynamic composition and use of Prussian blue made it revolutionary in its time. It has become one of the most recognizable images in Japanese art and has influenced artists worldwide."
+                }
+            },
+            {
+                name: "The Birth of Venus",
+                emoji: "🌅",
+                icon: "🌅",
+                keywords: ["botticelli", "venus", "renaissance", "art", "painting", "the birth of venus", "birth of venus"],
+                searchUrl: "https://www.google.com/search?q=The+Birth+of+Venus+Botticelli",
+                isDirectSearch: true,
+                isSubTool: false,
+                subTools: [],
+                info: {
+                    title: "The Birth of Venus",
+                    artist: "Sandro Botticelli",
+                    year: "1485",
+                    medium: "Tempera on canvas",
+                    location: "Uffizi Gallery, Florence",
+                    description: "This painting depicts the Roman goddess Venus emerging from the sea on a shell. It's one of the most famous works of the Italian Renaissance and represents the ideal of beauty in classical art. The painting's graceful figures, flowing lines, and delicate colors exemplify Botticelli's unique style. It was revolutionary for its time in its depiction of a nude female figure in a non-religious context."
+                }
+            },
+            {
+                name: "The Last Supper",
+                emoji: "🍽️",
+                icon: "🍽️",
+                keywords: ["da vinci", "last supper", "jesus", "art", "painting", "the last supper"],
+                searchUrl: "https://www.google.com/search?q=The+Last+Supper+Da+Vinci",
+                isDirectSearch: true,
+                isSubTool: false,
+                subTools: [],
+                info: {
+                    title: "The Last Supper",
+                    artist: "Leonardo da Vinci",
+                    year: "1498",
+                    medium: "Tempera and oil on plaster",
+                    location: "Santa Maria delle Grazie, Milan",
+                    description: "This iconic mural painting depicts the moment when Jesus announces that one of his disciples will betray him. The painting is renowned for its masterful composition, with all lines of perspective converging on Christ's head. Da Vinci's innovative use of perspective and his ability to capture human emotion made this one of the most influential works of the Renaissance. The painting's psychological depth and technical mastery continue to fascinate viewers today."
+                }
+            },
+            {
+                name: "The Night Watch",
+                emoji: "🖼️",
+                icon: "🖼️",
+                keywords: ["rembrandt", "night watch", "dutch", "art", "painting", "the night watch"],
+                searchUrl: "https://www.google.com/search?q=The+Night+Watch+Rembrandt",
+                isDirectSearch: true,
+                isSubTool: false,
+                subTools: [],
+                info: {
+                    title: "The Night Watch",
+                    artist: "Rembrandt van Rijn",
+                    year: "1642",
+                    medium: "Oil on canvas",
+                    location: "Rijksmuseum, Amsterdam",
+                    description: "This massive group portrait shows a company of civic guardsmen. The painting is famous for its dramatic use of light and shadow, and its dynamic composition that breaks from traditional group portraiture. Rembrandt's innovative approach to lighting and his ability to capture individual personalities within a group setting made this one of the most important works of the Dutch Golden Age. The painting's original name was 'The Company of Captain Frans Banning Cocq and Lieutenant Willem van Ruytenburch.'"
+                }
+            }//,
             //{ name: 'Bunny', icon: '🐰', keywords: ['pornhub', 'porn', 'sex', 'pornhub.com'], isDirectSearch: false, searchUrl: 'https://www.pornhub.com/video/search?search={query}' }
         ];
 
@@ -199,6 +490,8 @@
         let selectedIndex = -1;
         let inputValue = '';
         let isInformationMode = false; // New flag to track if 'information' command is active
+        let currentPage = 0;
+        const itemsPerPage = 10;
 
         const typedText = document.getElementById('typedText');
         const prefixSpan = document.getElementById('prefixSpan');
@@ -212,101 +505,123 @@
         }
 
         function showAutocomplete() {
-            autocompleteList.innerHTML = ''; // Always clear first
-            autocompleteList.style.pointerEvents = 'none'; // Default to off
+            autocompleteList.innerHTML = '';
+            autocompleteList.style.pointerEvents = 'none';
 
             const val = inputValue.trim().toLowerCase();
             let itemsToSuggest = [];
             let predictions = [];
 
-            // Determine the base set of items to suggest based on phase
-            if (searchPhase === 0) { // App selection phase
+            if (searchPhase === 0) {
                 itemsToSuggest = APPS;
-            } else if (searchPhase === 1 && selectedApp && selectedApp.subTools) { // Sub-tool selection phase
+            } else if (searchPhase === 1 && selectedApp && selectedApp.subTools) {
                 itemsToSuggest = selectedApp.subTools;
-            } else { // Phase 2 (query input) or no valid selectedApp/subTools
-                return; // No autocomplete in query phase, or if no valid app/subtool
+            } else {
+                return;
             }
 
             const informationSuggestion = { name: 'Information', keywords: ['information', 'info'], icon: 'ℹ️' };
             const isTypingInformationPrefix = 'information'.startsWith(val) && val.length > 0;
 
             if (isInformationMode) {
-                // If in information mode, show all relevant items or filter them if user types
-                if (val === '') { // If no input in information mode, show all
-                    predictions = itemsToSuggest.slice(); // Start with all items
-                } else { // If typing in information mode, filter the full list
-                    predictions = getPredictions(val, itemsToSuggest); // Filter the full list
-                }
-                // Always add 'Information' suggestion in information mode if typing its prefix or if input is empty
+                predictions = val === '' ? itemsToSuggest.slice() : getPredictions(val, itemsToSuggest);
                 if (isTypingInformationPrefix || val === '') {
                     if (!predictions.some(item => item.name === informationSuggestion.name)) {
                         predictions.push(informationSuggestion);
                     }
                 }
-            } else { // Normal mode (not in information mode)
+            } else {
                 if (isTypingInformationPrefix) {
-                    // If typing 'information' prefix, show all items from itemsToSuggest
-                    predictions = itemsToSuggest.slice(); // Make a copy of all items
-                    // Add 'Information' suggestion to the beginning, but only if it's not already there
+                    predictions = itemsToSuggest.slice();
                     if (!predictions.some(item => item.name === informationSuggestion.name)) {
-                         predictions.unshift(informationSuggestion); // Add to the beginning for immediate visibility
-                    }
-
-                    // Exclude YouTube and Vimeo if 'video' or 'videos' is typed in app selection phase
-                    if (searchPhase === 0 && (val === 'video' || val === 'videos')) {
-                        predictions = predictions.filter(item => item.name !== 'YouTube' && item.name !== 'Vimeo');
-                    }
-
-                    // Exclude WhatsApp if 'chat' is typed in app selection phase
-                    if (searchPhase === 0 && val === 'chat') {
-                        predictions = predictions.filter(item => item.name !== 'WhatsApp');
+                        predictions.unshift(informationSuggestion);
                     }
                 } else if (val) {
-                    // Normal predictions based on user input
                     predictions = getPredictions(val, itemsToSuggest);
                 }
             }
 
-            // Ensure unique predictions and put 'Information' at the top if it's the specific command typed
-            if (predictions.length > 0) {
-                 predictions = [...new Map(predictions.map(item => [item.name, item])).values()];
-                 // If the exact command 'information' is typed, ensure it's at the top
-                 if (val === 'information' && predictions.some(p => p.name === 'Information')) {
-                     const infoIndex = predictions.findIndex(p => p.name === 'Information');
-                     if (infoIndex !== -1) {
-                         const infoItem = predictions.splice(infoIndex, 1)[0];
-                         predictions.unshift(infoItem);
-                     }
-                 }
+            if (predictions.length === 0) return;
+
+            predictions = [...new Map(predictions.map(item => [item.name, item])).values()];
+            if (val === 'information' && predictions.some(p => p.name === 'Information')) {
+                const infoIndex = predictions.findIndex(p => p.name === 'Information');
+                if (infoIndex !== -1) {
+                    const infoItem = predictions.splice(infoIndex, 1)[0];
+                    predictions.unshift(infoItem);
+                }
             }
 
-            if (predictions.length === 0) {
-                return; // Nothing to show
-            }
+            // Ensure currentPage is within valid bounds
+            const totalPages = Math.max(1, Math.ceil(predictions.length / itemsPerPage));
+            currentPage = Math.min(currentPage, totalPages - 1);
+            
+            const startIndex = currentPage * itemsPerPage;
+            const endIndex = Math.min(startIndex + itemsPerPage, predictions.length);
+            const currentPageItems = predictions.slice(startIndex, endIndex);
 
-            autocompleteList.innerHTML = predictions.map((item, i) =>
+            const itemsContainer = document.createElement('div');
+            itemsContainer.className = 'autocomplete-items';
+            itemsContainer.innerHTML = currentPageItems.map((item, i) =>
                 `<div class="autocomplete-item${i === selectedIndex ? ' selected' : ''}" data-name="${item.name}">${item.icon || ''} ${item.name}</div>`
             ).join('');
-            autocompleteList.style.pointerEvents = 'auto'; // Enable if there are predictions
+
+            const pageIndicator = document.createElement('div');
+            pageIndicator.className = 'page-indicator';
+            pageIndicator.textContent = `${startIndex + 1}-${endIndex} of ${predictions.length}`;
+
+            const pageNavigation = document.createElement('div');
+            pageNavigation.className = 'page-navigation';
+            
+            const leftArrow = document.createElement('span');
+            leftArrow.className = `page-arrow${currentPage === 0 ? ' disabled' : ''}`;
+            leftArrow.textContent = '←';
+            leftArrow.onclick = () => {
+                if (currentPage > 0) {
+                    currentPage--;
+                    selectedIndex = -1;
+                    showAutocomplete();
+                }
+            };
+            
+            const rightArrow = document.createElement('span');
+            rightArrow.className = `page-arrow${currentPage >= totalPages - 1 ? ' disabled' : ''}`;
+            rightArrow.textContent = '→';
+            rightArrow.onclick = () => {
+                if (currentPage < totalPages - 1) {
+                    currentPage++;
+                    selectedIndex = -1;
+                    showAutocomplete();
+                }
+            };
+            
+            pageNavigation.appendChild(leftArrow);
+            pageNavigation.appendChild(rightArrow);
+
+            autocompleteList.innerHTML = '';
+            autocompleteList.appendChild(itemsContainer);
+            autocompleteList.appendChild(pageIndicator);
+            autocompleteList.appendChild(pageNavigation);
+            autocompleteList.style.pointerEvents = 'auto';
         }
 
         function updateDisplay() {
             let currentPrefix = '';
             let currentPlaceholder = '';
+            const artworkInfo = document.getElementById('artworkInfo');
 
             if (searchPhase === 0) {
                 currentPlaceholder = 'Type app name (e.g., Google, YouTube)...';
                 if (isInformationMode) {
                     currentPrefix = 'ℹ️ ';
-                    currentPlaceholder = ' Type app name...'; // Prompt to type app from info list
+                    currentPlaceholder = ' Type app name...';
                 }
             } else if (searchPhase === 1 && selectedApp) {
                 currentPrefix = selectedApp.icon || '';
                 currentPlaceholder = ' Type sub-tool (e.g., Search, Images, Maps) or "information"...';
                 if (isInformationMode) {
                     currentPrefix = 'ℹ️ ';
-                    currentPlaceholder = ' Type sub-tool...'; // Prompt to type sub-tool from info list
+                    currentPlaceholder = ' Type sub-tool...';
                 }
             } else if (searchPhase === 2 && selectedSubTool) {
                 currentPrefix = selectedSubTool.icon || selectedApp.icon || '';
@@ -315,14 +630,47 @@
                 currentPrefix = selectedApp.icon || '';
                 currentPlaceholder = ' Type your URL or search query...';
             } else if (searchPhase === 2 && selectedApp && !selectedSubTool) {
-                // For apps like Vimeo, which are not direct search but have no sub-tools, display app icon
                 currentPrefix = selectedApp.icon || '';
                 currentPlaceholder = ' Type your search query...';
             }
 
             prefixSpan.textContent = currentPrefix;
             userInputSpan.textContent = inputValue;
-            cursor.style.display = 'inline-block'; // Ensure cursor is always visible
+            cursor.style.display = 'inline-block';
+
+            // Show artwork info if it's an artwork app
+            if (selectedApp && selectedApp.info) {
+                if (searchPhase === 1 || (searchPhase === 2 && selectedApp.isDirectSearch)) {
+                    const imageUrl = {
+                        "The Starry Night": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg/1280px-Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg",
+                        "The Persistence of Memory": "https://upload.wikimedia.org/wikipedia/en/d/dd/The_Persistence_of_Memory.jpg",
+                        "The Scream": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Edvard_Munch%2C_1893%2C_The_Scream%2C_oil%2C_tempera_and_pastel_on_cardboard%2C_91_x_73_cm%2C_National_Gallery_of_Norway.jpg/1280px-Edvard_Munch%2C_1893%2C_The_Scream%2C_oil%2C_tempera_and_pastel_on_cardboard%2C_91_x_73_cm%2C_National_Gallery_of_Norway.jpg",
+                        "Girl with a Pearl Earring": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/1665_Girl_with_a_Pearl_Earring.jpg/1280px-1665_Girl_with_a_Pearl_Earring.jpg",
+                        "The Great Wave": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0a/The_Great_Wave_off_Kanagawa.jpg/1280px-The_Great_Wave_off_Kanagawa.jpg",
+                        "The Birth of Venus": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0b/Sandro_Botticelli_-_La_nascita_di_Venere_-_Google_Art_Project_-_edited.jpg/1280px-Sandro_Botticelli_-_La_nascita_di_Venere_-_Google_Art_Project_-_edited.jpg",
+                        "The Last Supper": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/%C3%9Altima_Cena_-_Da_Vinci_5.jpg/1280px-%C3%9Altima_Cena_-_Da_Vinci_5.jpg",
+                        "The Night Watch": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/The_Night_Watch_-_HD.jpg/1280px-The_Night_Watch_-_HD.jpg"
+                    }[selectedApp.name];
+
+                    artworkInfo.innerHTML = `
+                        <div class="artwork-details">
+                            <h2 class="artwork-title">${selectedApp.info.title}</h2>
+                            <div class="artwork-artist">by ${selectedApp.info.artist} (${selectedApp.info.year})</div>
+                            <div class="artwork-description">${selectedApp.info.description}</div>
+                            <div>Medium: ${selectedApp.info.medium}</div>
+                            <div>Location: ${selectedApp.info.location}</div>
+                        </div>
+                        <img src="${imageUrl}" 
+                             alt="${selectedApp.info.title}" 
+                             class="artwork-image">
+                    `;
+                    artworkInfo.classList.add('active');
+                } else {
+                    artworkInfo.classList.remove('active');
+                }
+            } else {
+                artworkInfo.classList.remove('active');
+            }
 
             // Handle crypto prices display
             if (selectedApp && selectedApp.name === 'CoinMarketCap') {
@@ -374,6 +722,122 @@
             isInformationMode = false; // Reset info mode
         }
 
+        function handleEnter() {
+            if (searchPhase === 0) {
+                const predictions = getPredictions(inputValue.trim(), APPS);
+                let selectedItem = null;
+
+                if (selectedIndex >= 0 && predictions[selectedIndex]) {
+                    selectedItem = predictions[selectedIndex];
+                } else if (predictions.length > 0) {
+                    selectedItem = predictions[0];
+                } else if (inputValue.trim() && APPS.length > 0) {
+                    selectedItem = APPS.find(item => item.name.toLowerCase() === inputValue.trim().toLowerCase());
+                }
+
+                if (selectedItem) {
+                    selectedApp = selectedItem;
+                    if (selectedApp.name === 'URL') {
+                        searchPhase = 2;
+                        inputValue = '';
+                        selectedIndex = -1;
+                        updateDisplay();
+                    } else if (selectedApp.isDirectSearch) {
+                        const searchUrl = selectedApp.searchUrl.replace('{query}', '');
+                        if (searchUrl) {
+                            window.open(searchUrl, '_blank');
+                            resetToAppSelection();
+                        }
+                    } else if (selectedApp.subTools && selectedApp.subTools.length > 0) {
+                        searchPhase = 1;
+                        inputValue = '';
+                        selectedIndex = -1;
+                        updateDisplay();
+                    } else if (!selectedApp.isDirectSearch && !selectedApp.subTools) {
+                        searchPhase = 2;
+                        inputValue = '';
+                        selectedIndex = -1;
+                        updateDisplay();
+                    }
+                } else if (inputValue.trim()) {
+                    // Only perform Google search if no apps match
+                    window.open(`https://www.google.com/search?q=${encodeURIComponent(inputValue)}`, '_blank');
+                    resetSearch();
+                }
+            } else if (searchPhase === 1) {
+                const predictions = getPredictions(inputValue.trim(), selectedApp.subTools);
+                let selectedItem = null;
+
+                if (selectedIndex >= 0 && predictions[selectedIndex]) {
+                    selectedItem = predictions[selectedIndex];
+                } else if (predictions.length > 0) {
+                    selectedItem = predictions[0];
+                } else if (inputValue.trim() && selectedApp.subTools) {
+                    selectedItem = selectedApp.subTools.find(item => 
+                        item.name.toLowerCase() === inputValue.trim().toLowerCase() ||
+                        item.keywords.some(k => k.toLowerCase() === inputValue.trim().toLowerCase())
+                    );
+                }
+
+                if (selectedItem) {
+                    selectedSubTool = selectedItem;
+                    searchPhase = 2;
+                    inputValue = '';
+                    selectedIndex = -1;
+                    updateDisplay();
+                } else if (selectedApp.name === 'YouTube') {
+                    // Default to Videos for YouTube if no specific sub-tool is selected
+                    selectedSubTool = selectedApp.subTools.find(tool => tool.name === 'Videos');
+                    searchPhase = 2;
+                    inputValue = '';
+                    selectedIndex = -1;
+                    updateDisplay();
+                } else if (selectedApp.subTools && selectedApp.subTools.length > 0) {
+                    // For other apps, default to first sub-tool
+                    selectedSubTool = selectedApp.subTools[0];
+                    searchPhase = 2;
+                    inputValue = '';
+                    selectedIndex = -1;
+                    updateDisplay();
+                }
+            } else if (searchPhase === 2) {
+                if (inputValue.trim()) {
+                    let searchUrl = selectedSubTool ? selectedSubTool.searchUrl : selectedApp.searchUrl;
+                    
+                    // Special handling for YouTube Channel search
+                    if (selectedApp.name === 'YouTube' && selectedSubTool && selectedSubTool.name === 'Channel') {
+                        // Get the exact input, only removing @ if it's at the start
+                        const query = inputValue.trim();
+                        const channelName = query.startsWith('@') ? query.substring(1) : query;
+                        
+                        // First try direct channel URL with exact case
+                        const directChannelUrl = `https://www.youtube.com/@${channelName}`;
+                        
+                        // Check if the channel exists
+                        fetch(directChannelUrl)
+                            .then(response => {
+                                if (response.ok) {
+                                    // Channel exists, open direct URL
+                                    window.open(directChannelUrl, '_blank');
+                                } else {
+                                    // Channel doesn't exist, do channel search
+                                    const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(channelName)}&sp=EgIQAg%253D%253D`;
+                                    window.open(searchUrl, '_blank');
+                                }
+                            })
+                            .catch(() => {
+                                // If fetch fails, do channel search
+                                const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(channelName)}&sp=EgIQAg%253D%253D`;
+                                window.open(searchUrl, '_blank');
+                            });
+                    } else {
+                        window.open(searchUrl.replace('{query}', encodeURIComponent(inputValue.trim())), '_blank');
+                    }
+                }
+                resetSearch();
+            }
+        }
+
         document.addEventListener('keydown', function(e) {
             if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
 
@@ -381,26 +845,25 @@
 
             if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && e.key !== 'Enter') {
                 inputValue += e.key;
+                currentPage = 0;
                 updateDisplay();
                 window._backspaceCount = 0;
-                isInformationMode = false; // Exit info mode when typing normally
+                isInformationMode = false;
             } else if (e.key === 'Backspace') {
                 if (inputValue.length === 0) {
                     window._backspaceCount = (window._backspaceCount || 0) + 1;
                     if (window._backspaceCount >= 2) {
                         if (searchPhase === 2) {
-                            // If in query input phase and selected app is a direct search app (like URL)
-                            // or if coming from a sub-tool (selectedSubTool is not null)
                             if (selectedApp && selectedApp.isDirectSearch || selectedSubTool) {
-                                resetToAppSelection(); // Go back to app selection
-                            } else { // If not a direct search app and no sub-tool selected (shouldn't happen with current logic)
-                                searchPhase = 1; // Fallback: go back to sub-tool selection
+                                resetToAppSelection();
+                            } else {
+                                searchPhase = 1;
                                 inputValue = '';
                                 selectedIndex = -1;
-                                selectedSubTool = null; // Reset sub-tool
+                                selectedSubTool = null;
                                 updateDisplay();
                             }
-                        } else if (searchPhase === 1) { // Go back from sub-tool selection to app selection
+                        } else if (searchPhase === 1) {
                             resetToAppSelection();
                         }
                         window._backspaceCount = 0;
@@ -408,180 +871,25 @@
                     }
                 } else {
                     inputValue = inputValue.slice(0, -1);
+                    currentPage = 0;
                     updateDisplay();
                     window._backspaceCount = 0;
-                    isInformationMode = false; // Exit info mode when backspacing normally
-                }
-            } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-                let itemsToSuggest = [];
-                if (searchPhase === 0) {
-                    itemsToSuggest = APPS;
-                } else if (searchPhase === 1 && selectedApp && selectedApp.subTools) {
-                    itemsToSuggest = selectedApp.subTools;
-                }
-
-                const predictions = getPredictions(inputValue.trim(), itemsToSuggest);
-                if (predictions.length > 0) {
-                    if (e.key === 'ArrowDown') {
-                        selectedIndex = (selectedIndex + 1) % predictions.length;
-                    } else {
-                        selectedIndex = (selectedIndex - 1 + predictions.length) % predictions.length;
-                    }
-                    showAutocomplete();
-                    e.preventDefault();
-                    isInformationMode = false; // Exit info mode when navigating suggestions
+                    isInformationMode = false;
                 }
             } else if (e.key === 'Enter') {
                 e.preventDefault();
-                let currentItems = [];
-                if (searchPhase === 0) {
-                    currentItems = APPS;
-                } else if (searchPhase === 1 && selectedApp && selectedApp.subTools) {
-                    currentItems = selectedApp.subTools;
-                }
-
-                let selectedItem = null;
-                const val = inputValue.trim();
-
-                const predictions = getPredictions(val, currentItems);
-
-                if (selectedIndex >= 0 && predictions[selectedIndex]) {
-                    selectedItem = predictions[selectedIndex];
-                } else if (predictions.length > 0) {
-                    selectedItem = predictions[0];
-                } else if (val && currentItems.length > 0) { // Fallback for exact type if no predictions
-                    selectedItem = currentItems.find(item => item.name.toLowerCase() === val.toLowerCase());
-                }
-
-                // If the selected autocomplete item is 'Information', do nothing
-                if (selectedItem && selectedItem.name === 'Information') {
-                    return; // Prevent any further action for the 'Information' autocomplete item
-                }
-
-                // Handle 'information' command explicitly when typed
-                if (val.toLowerCase() === 'information') {
-                    isInformationMode = true; // Activate info mode
-                    inputValue = ''; // Clear input so user can type selection
-                    selectedIndex = -1;
-                    updateDisplay(); // Trigger display update to show all apps/sub-tools
-                    return;
-                }
-
-                if (searchPhase === 0) { // App selection phase
-                    if (selectedItem) {
-                        selectedApp = selectedItem;
-                        if (selectedApp.name === 'URL') {
-                            // Special handling for URL app: go to query input phase to allow URL validation
-                            searchPhase = 2;
-                            inputValue = '';
-                            selectedIndex = -1;
-                            updateDisplay();
-                        } else if (selectedApp.isDirectSearch) {
-                            // For other direct search apps, open the URL immediately
-                            const searchUrl = selectedApp.searchUrl.replace('{query}', '');
-                            if (searchUrl) {
-                                window.open(searchUrl, '_blank');
-                                resetToAppSelection();
-                            }
-                        } else if (selectedApp.subTools && selectedApp.subTools.length > 0) {
-                            searchPhase = 1; // Move to sub-tool selection
-                            inputValue = ''; // Clear input for sub-tool
-                            selectedIndex = -1;
-                            updateDisplay();
-                        } else if (!selectedApp.isDirectSearch && !selectedApp.subTools) {
-                            // For apps that are not direct search but have no sub-tools, go directly to query input.
-                            searchPhase = 2;
-                            inputValue = '';
-                            selectedIndex = -1;
-                            updateDisplay();
-                        }
-                    }
-                } else if (searchPhase === 1 && selectedApp) { // Sub-tool selection phase
-                    if (selectedItem) {
-                        selectedSubTool = selectedItem;
-                        searchPhase = 2;
-                        inputValue = '';
-                        selectedIndex = -1;
-                        updateDisplay();
-                    } else if (selectedApp.name === 'YouTube') {
-                        const queryFromPhase1 = inputValue.trim(); // This inputValue is what the user typed in phase 1
-                        if (!queryFromPhase1) {
-                            // If no input, default to Videos
-                            selectedSubTool = selectedApp.subTools.find(tool => tool.name === 'Videos');
-                        } else {
-                            // Intelligent decision based on input in phase 1
-                            const lowerCaseQuery = queryFromPhase1.toLowerCase();
-                            if (lowerCaseQuery.startsWith('@') || !lowerCaseQuery.includes(' ')) {
-                                selectedSubTool = selectedApp.subTools.find(tool => tool.name === 'Channel');
-                            } else {
-                                selectedSubTool = selectedApp.subTools.find(tool => tool.name === 'Videos');
-                            }
-                        }
-
-                        if (selectedSubTool) {
-                            searchPhase = 2;
-                            inputValue = queryFromPhase1; // Keep the input value as the query
-                            selectedIndex = -1;
-                            updateDisplay();
-                        } else {
-                            console.warn("YouTube default sub-tool not found.");
-                            resetToAppSelection();
-                        }
-                    } else if (selectedApp.subTools && selectedApp.subTools.length > 0) {
-                        // For other apps with sub-tools, if no explicit sub-tool selected, default to the first sub-tool
-                        selectedSubTool = selectedApp.subTools[0];
-                        searchPhase = 2;
-                        inputValue = ''; // Clear input for query from phase 1
-                        selectedIndex = -1;
-                        updateDisplay();
-                    } else {
-                        // Fallback for unexpected scenarios (e.g., app with no sub-tools but not direct search,
-                        // or no valid default behavior defined)
-                        console.warn("No sub-tool selected and no default search URL or sub-tools for current app.");
-                        resetToAppSelection();
-                    }
-                } else if (searchPhase === 2) { // Query input phase
-                    const query = inputValue.trim();
-                    if (!query) return;
-                    let searchUrl = '';
-
-                    if (selectedApp && selectedApp.name === 'URL') {
-                        // Simple URL validation regex. This isn't exhaustive but covers common cases.
-                        const urlRegex = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
-
-                        if (urlRegex.test(query)) {
-                            let finalUrl = query;
-                            if (!query.startsWith('http://') && !query.startsWith('https://')) {
-                                finalUrl = 'https://' + query;
-                            }
-                            window.open(finalUrl, '_blank');
-                            resetToAppSelection();
-                            return; // Stop further processing
-                        } else {
-                            // If not a valid URL, perform a Google search
-                            searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
-                        }
-                    } else if (selectedApp && selectedApp.name === 'YouTube' && selectedSubTool && selectedSubTool.name === 'Channel') {
-                        const lowerCaseQuery = query.toLowerCase();
-                        // Heuristic: if it looks like a direct channel handle or a simple name, try direct link
-                        // Direct channel handles often start with '@' or are simple alphanumeric strings without spaces.
-                        if (lowerCaseQuery.startsWith('@') || !lowerCaseQuery.includes(' ')) {
-                            searchUrl = `https://www.youtube.com/@${encodeURIComponent(query)}`;
-                        } else {
-                            // Fallback to search if it doesn't look like a direct handle
-                            searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&sp=EgIQAg%253D%253D`;
-                        }
-                    } else if (selectedSubTool && selectedSubTool.searchUrl) {
-                        searchUrl = selectedSubTool.searchUrl.replace('{query}', encodeURIComponent(query));
-                    } else if (selectedApp && !selectedSubTool && selectedApp.searchUrl) {
-                        // For apps that are search bars without sub-tools (like DuckDuckGo, Pexels, Pixabay, Vimeo, WebStarts Help, Amazon, Wikipedia, X)
-                        searchUrl = selectedApp.searchUrl.replace('{query}', encodeURIComponent(query));
-                    }
-
-                    if (searchUrl) {
-                        window.open(searchUrl, '_blank');
-                        resetToAppSelection();
-                    }
+                handleEnter();
+            } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                // Find the arrow buttons and simulate a click
+                const leftArrow = document.querySelector('.page-arrow:first-child');
+                const rightArrow = document.querySelector('.page-arrow:last-child');
+                
+                if (e.key === 'ArrowRight' && rightArrow && !rightArrow.classList.contains('disabled')) {
+                    rightArrow.click();
+                    e.preventDefault();
+                } else if (e.key === 'ArrowLeft' && leftArrow && !leftArrow.classList.contains('disabled')) {
+                    leftArrow.click();
+                    e.preventDefault();
                 }
             }
         });
@@ -644,43 +952,25 @@
                     if (selectedItem) {
                         selectedSubTool = selectedItem;
                         searchPhase = 2;
-                        inputValue = '';
+                        inputValue = ''; // Clear input for the search query
                         selectedIndex = -1;
                         updateDisplay();
                     } else if (selectedApp.name === 'YouTube') {
-                        const queryFromPhase1 = inputValue.trim(); // This inputValue is what the user typed in phase 1
-                        if (!queryFromPhase1) {
-                            // If no input, default to Videos
-                            selectedSubTool = selectedApp.subTools.find(tool => tool.name === 'Videos');
-                        } else {
-                            // Intelligent decision based on input in phase 1
-                            const lowerCaseQuery = queryFromPhase1.toLowerCase();
-                            if (lowerCaseQuery.startsWith('@') || !lowerCaseQuery.includes(' ')) {
-                                selectedSubTool = selectedApp.subTools.find(tool => tool.name === 'Channel');
-                            } else {
-                                selectedSubTool = selectedApp.subTools.find(tool => tool.name === 'Videos');
-                            }
-                        }
-
-                        if (selectedSubTool) {
-                            searchPhase = 2;
-                            inputValue = queryFromPhase1; // Keep the input value as the query
-                            selectedIndex = -1;
-                            updateDisplay();
-                        } else {
-                            console.warn("YouTube default sub-tool not found.");
-                            resetToAppSelection();
-                        }
+                        // Default to Videos if no specific sub-tool is selected
+                        selectedSubTool = selectedApp.subTools.find(tool => tool.name === 'Videos');
+                        searchPhase = 2;
+                        inputValue = ''; // Clear input for the search query
+                        selectedIndex = -1;
+                        updateDisplay();
                     } else if (selectedApp.subTools && selectedApp.subTools.length > 0) {
                         // For other apps with sub-tools, if no explicit sub-tool selected, default to the first sub-tool
                         selectedSubTool = selectedApp.subTools[0];
                         searchPhase = 2;
-                        inputValue = ''; // Clear input for query from phase 1
+                        inputValue = ''; // Clear input for the search query
                         selectedIndex = -1;
                         updateDisplay();
                     } else {
-                        // Fallback for unexpected scenarios (e.g., app with no sub-tools but not direct search,
-                        // or no valid default behavior defined)
+                        // Fallback for unexpected scenarios
                         console.warn("No sub-tool selected and no default search URL or sub-tools for current app.");
                         resetToAppSelection();
                     }
@@ -688,6 +978,35 @@
 
                 // Reset selectedIndex after an item is clicked/selected
                 selectedIndex = -1;
+            }
+        });
+
+        // Add this after the existing event listeners
+        autocompleteList.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                let itemsToSuggest = [];
+                if (searchPhase === 0) {
+                    itemsToSuggest = APPS;
+                } else if (searchPhase === 1 && selectedApp && selectedApp.subTools) {
+                    itemsToSuggest = selectedApp.subTools;
+                }
+
+                const predictions = getPredictions(inputValue.trim(), itemsToSuggest);
+                if (predictions.length === 0) return;
+
+                const totalPages = Math.max(1, Math.ceil(predictions.length / itemsPerPage));
+
+                if (e.key === 'ArrowRight' && currentPage < totalPages - 1) {
+                    e.preventDefault();
+                    currentPage++;
+                    selectedIndex = -1;
+                    updateDisplay();
+                } else if (e.key === 'ArrowLeft' && currentPage > 0) {
+                    e.preventDefault();
+                    currentPage--;
+                    selectedIndex = -1;
+                    updateDisplay();
+                }
             }
         });
 
@@ -751,6 +1070,152 @@
                 cryptoPrices.innerHTML = '<div class="crypto-price-item">Error fetching prices</div>';
             }
         }
+
+        function createLightOrbs() {
+            const container = document.getElementById('lightOrbs');
+            const colors = [
+                '#ff00ff', // Neon Pink
+                '#00ffff', // Neon Cyan
+                '#ff0000', // Neon Red
+                '#00ff00', // Neon Green
+                '#ffff00', // Neon Yellow
+                '#ff8800', // Neon Orange
+                '#ff0088', // Neon Magenta
+                '#00ff88', // Neon Mint
+                '#8800ff', // Neon Purple
+                '#ff8800', // Neon Gold
+                '#88ff00', // Neon Lime
+                '#ff00aa'  // Neon Hot Pink
+            ];
+            
+            // Create more bubbles for denser bottom effect
+            for (let i = 0; i < 100; i++) {
+                const orb = document.createElement('div');
+                orb.className = 'light-orb';
+                
+                // Tiny size between 2px and 6px
+                const size = Math.random() * 4 + 2;
+                orb.style.width = `${size}px`;
+                orb.style.height = `${size}px`;
+                
+                // Random color
+                const color = colors[Math.floor(Math.random() * colors.length)];
+                orb.style.backgroundColor = color;
+                orb.style.color = color;
+                
+                // Distribute bubbles more densely at the bottom
+                // Use a non-linear distribution to create the grass-like effect
+                const randomValue = Math.random();
+                const position = Math.pow(randomValue, 2); // Square the random value to bias towards bottom
+                orb.style.left = `${position * 100}vw`;
+                
+                // Random animation delay
+                orb.style.animationDelay = `${Math.random() * 8}s`;
+                
+                // Random animation duration between 6 and 10 seconds
+                const duration = Math.random() * 4 + 6;
+                orb.style.animationDuration = `${duration}s`;
+                
+                // Add a slight random horizontal drift
+                const driftAmount = (Math.random() * 40 - 20);
+                orb.style.setProperty('--drift', `${driftAmount}px`);
+                
+                container.appendChild(orb);
+            }
+        }
+
+        // Call this function when the page loads
+        createLightOrbs();
+
+        // Add this at the beginning of your script section
+        const artPieces = [
+            {
+                name: "The Starry Night",
+                artist: "Vincent van Gogh",
+                url: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg/1280px-Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg"
+            },
+            {
+                name: "The Persistence of Memory",
+                artist: "Salvador Dalí",
+                url: "https://upload.wikimedia.org/wikipedia/en/d/dd/The_Persistence_of_Memory.jpg"
+            },
+            {
+                name: "The Scream",
+                artist: "Edvard Munch",
+                url: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Edvard_Munch%2C_1893%2C_The_Scream%2C_oil%2C_tempera_and_pastel_on_cardboard%2C_91_x_73_cm%2C_National_Gallery_of_Norway.jpg/1280px-Edvard_Munch%2C_1893%2C_The_Scream%2C_oil%2C_tempera_and_pastel_on_cardboard%2C_91_x_73_cm%2C_National_Gallery_of_Norway.jpg"
+            },
+            {
+                name: "Girl with a Pearl Earring",
+                artist: "Johannes Vermeer",
+                url: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/1665_Girl_with_a_Pearl_Earring.jpg/1280px-1665_Girl_with_a_Pearl_Earring.jpg"
+            },
+            {
+                name: "The Great Wave",
+                artist: "Hokusai",
+                url: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0a/The_Great_Wave_off_Kanagawa.jpg/1280px-The_Great_Wave_off_Kanagawa.jpg"
+            },
+            {
+                name: "The Birth of Venus",
+                artist: "Sandro Botticelli",
+                url: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0b/Sandro_Botticelli_-_La_nascita_di_Venere_-_Google_Art_Project_-_edited.jpg/1280px-Sandro_Botticelli_-_La_nascita_di_Venere_-_Google_Art_Project_-_edited.jpg"
+            },
+            {
+                name: "The Last Supper",
+                artist: "Leonardo da Vinci",
+                url: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/%C3%9Altima_Cena_-_Da_Vinci_5.jpg/1280px-%C3%9Altima_Cena_-_Da_Vinci_5.jpg"
+            },
+            {
+                name: "The Night Watch",
+                artist: "Rembrandt",
+                url: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/The_Night_Watch_-_HD.jpg/1280px-The_Night_Watch_-_HD.jpg"
+            }
+        ];
+
+        function setupArtBackgrounds() {
+            const container = document.getElementById('artBackgrounds');
+            
+            // Create background elements for each art piece
+            artPieces.forEach((art, index) => {
+                const bg = document.createElement('div');
+                bg.className = 'art-background';
+                
+                // Create an image element to preload the image
+                const img = new Image();
+                img.onload = function() {
+                    bg.style.backgroundImage = `url(${art.url})`;
+                };
+                img.onerror = function() {
+                    console.warn(`Failed to load image: ${art.url}`);
+                    // Keep the fallback background color
+                };
+                img.src = art.url;
+                
+                container.appendChild(bg);
+            });
+
+            let currentIndex = 0;
+            const backgrounds = document.querySelectorAll('.art-background');
+
+            function showNextBackground() {
+                // Remove active class from current background
+                backgrounds[currentIndex].classList.remove('active');
+                
+                // Move to next background
+                currentIndex = (currentIndex + 1) % backgrounds.length;
+                
+                // Add active class to new background
+                backgrounds[currentIndex].classList.add('active');
+            }
+
+            // Show first background
+            backgrounds[0].classList.add('active');
+
+            // Change background every 3 seconds
+            setInterval(showNextBackground, 3000);
+        }
+
+        // Call this function when the page loads
+        setupArtBackgrounds();
 
         updateDisplay();
     </script>

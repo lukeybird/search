@@ -169,21 +169,32 @@
             pointer-events: none; /* Default to off, turn on when needed */
         }
         .autocomplete-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 16px;
             font-family: 'Orbitron', 'Share Tech Mono', monospace;
             font-size: 1.3rem;
             color: #00ffe7;
             background: #181828cc;
             border-radius: 8px;
             margin: 0.2em 0;
-            padding: 0.5em 1em;
             box-shadow: 0 2px 8px #00ffe733;
-            pointer-events: auto;
             cursor: pointer;
             opacity: 0.95;
             transition: background 0.18s, color 0.18s;
         }
+        .shortcut-text {
+            font-size: 0.9rem;
+            color: #8ba3b8;
+            margin-left: 12px;
+        }
         .autocomplete-item.selected, .autocomplete-item:hover {
             background: #00ffe7;
+            color: #181828;
+        }
+        .autocomplete-item.selected .shortcut-text, 
+        .autocomplete-item:hover .shortcut-text {
             color: #181828;
         }
         .page-indicator {
@@ -276,6 +287,41 @@
             font-size: 1em;
             color: #ddd;
             margin-bottom: 15px;
+        }
+        .suggestion {
+            display: flex;
+            align-items: center;
+            padding: 8px 16px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            border-radius: 8px;
+            margin: 2px 0;
+        }
+        
+        .suggestion-icon {
+            margin-right: 12px;
+            font-size: 1.2em;
+        }
+        
+        .suggestion-text {
+            flex-grow: 1;
+        }
+        
+        .suggestion-shortcut {
+            color: #666;
+            font-size: 0.9em;
+            padding: 2px 6px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            margin-left: 8px;
+        }
+        
+        .suggestion.selected {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .suggestion:hover {
+            background-color: rgba(255, 255, 255, 0.05);
         }
     </style>
 </head>
@@ -489,7 +535,6 @@
                 { name: 'ESV', icon: '📖', keywords: ['esv', 'english standard'], searchUrl: 'https://www.biblegateway.com/passage/?search={query}&version=ESV' }
             ]},
             { name: 'Canva', icon: '🎨', keywords: ['canva', 'c', 'whiteboard'], isDirectSearch: true, searchUrl: 'https://www.canva.com/design?create&type=TAEwJH6TtA8&category=tAEv8Hh5on0&analyticsCorrelationId=4f7db979-8dee-4598-afb9-a261cfe126a0' },
-            { name: 'Developer Link', icon: '👨‍💻', keywords: ['original', 'development', 'developer'], isDirectSearch: true, searchUrl: 'file:///Users/webstarts/Desktop/real%20quick/easyHome.html' },
             //{ name: 'Bunny', icon: '🐰', keywords: ['pornhub', 'porn', 'sex', 'pornhub.com'], isDirectSearch: false, searchUrl: 'https://www.pornhub.com/video/search?search={query}' }
         ];
 
@@ -571,9 +616,20 @@
 
             const itemsContainer = document.createElement('div');
             itemsContainer.className = 'autocomplete-items';
-            itemsContainer.innerHTML = currentPageItems.map((item, i) =>
-                `<div class="autocomplete-item${i === selectedIndex ? ' selected' : ''}" data-name="${item.name}">${item.icon || ''} ${item.name}</div>`
-            ).join('');
+            itemsContainer.innerHTML = currentPageItems.map((item, i) => {
+                let shortcutHtml = '';
+                if (item.name === 'ChatGPT') {
+                    shortcutHtml = `<span class="shortcut-text">SHIFT + C</span>`;
+                } else if (item.name === 'Canva') {
+                    shortcutHtml = `<span class="shortcut-text">SHIFT + V</span>`;
+                } else if (item.name === 'Information') {
+                    shortcutHtml = `<span class="shortcut-text">SHIFT + I</span>`;
+                }
+                return `<div class="autocomplete-item${i === selectedIndex ? ' selected' : ''}" data-name="${item.name}">
+                    <span>${item.icon || ''} ${item.name}</span>
+                    ${shortcutHtml}
+                </div>`;
+            }).join('');
 
             const pageIndicator = document.createElement('div');
             pageIndicator.className = 'page-indicator';
@@ -867,6 +923,35 @@
                 } else if (e.key === 'ArrowLeft' && leftArrow && !leftArrow.classList.contains('disabled')) {
                     leftArrow.click();
                     e.preventDefault();
+                }
+            }
+
+            // Handle keyboard shortcuts
+            if (e.shiftKey) {
+                switch(e.key.toLowerCase()) {
+                    case 'c':
+                        e.preventDefault(); // Prevent default browser behavior
+                        selectedApp = APPS.find(app => app.name === 'ChatGPT');
+                        if (selectedApp) {
+                            window.open(selectedApp.searchUrl, '_blank');
+                            resetSearch();
+                        }
+                        break;
+                    case 'v':
+                        e.preventDefault(); // Prevent default browser behavior
+                        selectedApp = APPS.find(app => app.name === 'Canva');
+                        if (selectedApp) {
+                            window.open(selectedApp.searchUrl, '_blank');
+                            resetSearch();
+                        }
+                        break;
+                    case 'i':
+                        e.preventDefault(); // Prevent default browser behavior
+                        isInformationMode = true;
+                        inputValue = '';
+                        selectedIndex = -1;
+                        updateDisplay();
+                        break;
                 }
             }
         });
@@ -1193,6 +1278,54 @@
 
         // Call this function when the page loads
         setupArtBackgrounds();
+
+        function resetSearch() {
+            inputValue = '';
+            selectedIndex = -1;
+            searchPhase = 0;
+            selectedApp = null;
+            selectedSubTool = null;
+            updateDisplay();
+        }
+
+        function displayPredictions(predictions) {
+            const suggestionsDiv = document.getElementById('suggestions');
+            suggestionsDiv.innerHTML = '';
+            
+            if (predictions.length === 0) return;
+            
+            const maxDisplay = 10;
+            const startIndex = Math.max(0, Math.min(selectedIndex - 2, predictions.length - maxDisplay));
+            const endIndex = Math.min(startIndex + maxDisplay, predictions.length);
+            
+            for (let i = startIndex; i < endIndex; i++) {
+                const item = predictions[i];
+                const div = document.createElement('div');
+                div.className = `suggestion ${i === selectedIndex ? 'selected' : ''}`;
+                
+                // Create icon span
+                const iconSpan = document.createElement('span');
+                iconSpan.className = 'suggestion-icon';
+                iconSpan.textContent = item.icon;
+                div.appendChild(iconSpan);
+                
+                // Create text span with shortcut if applicable
+                const textSpan = document.createElement('span');
+                textSpan.className = 'suggestion-text';
+                if (item.name === 'ChatGPT') {
+                    textSpan.textContent = `${item.name} (SHIFT + C)`;
+                } else {
+                    textSpan.textContent = item.name;
+                }
+                div.appendChild(textSpan);
+                
+                div.addEventListener('click', () => {
+                    selectedIndex = i;
+                    handleEnter();
+                });
+                suggestionsDiv.appendChild(div);
+            }
+        }
 
         updateDisplay();
     </script>

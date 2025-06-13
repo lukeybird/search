@@ -330,8 +330,8 @@
             { name: 'CoinMarketCap', icon: '💰', keywords: ['coinmarketcap', 'crypto', 'coins'], isDirectSearch: false, searchUrl: 'https://coinmarketcap.com/currencies/{query}/' },
             { name: 'Medium', icon: '📝', keywords: ['medium', 'blog', 'articles', 'writing', 'read'], isDirectSearch: false, searchUrl: 'https://medium.com/search?q={query}' },
             { name: 'TikTok', icon: '🎵', keywords: ['tiktok', 'tiktoks', 'video', 'videos', 'short', 'shorts'], isDirectSearch: false, searchUrl: 'https://www.tiktok.com/search?q={query}' },
-            { name: 'WhatsApp', icon: '💬', keywords: ['whatsapp', 'whats', 'wa', 'message', 'text'], isDirectSearch: true, searchUrl: 'https://web.whatsapp.com/' },
-            { name: 'Messenger', icon: '✉️', keywords: ['messenger', 'fb messenger', 'facebook messenger', 'message', 'text'], isDirectSearch: true, searchUrl: 'https://www.messenger.com/' },
+            { name: 'WhatsApp', icon: '💬', keywords: ['whatsapp', 'whats', 'wa', 'text'], isDirectSearch: true, searchUrl: 'https://web.whatsapp.com/' },
+            { name: 'Messenger', icon: '✉️', keywords: ['messenger', 'message', 'text'], isDirectSearch: true, searchUrl: 'https://www.messenger.com/' },
             { name: 'Facebook', icon: '🔵', keywords: ['facebook', 'fb', 'social'], isDirectSearch: true, searchUrl: 'https://www.facebook.com/' },
             { name: 'Screenshare', icon: '📞', keywords: ['video call', 'call', 'meeting', 'screenshare'], isDirectSearch: true, searchUrl: 'https://share.jarmetals.com/' },
             { name: 'ChatGPT', icon: '🤖', keywords: ['chatgpt', 'gpt', 'ai', 'chatbot'], isDirectSearch: true, searchUrl: 'https://chat.openai.com/' },
@@ -480,7 +480,16 @@
                     location: "Rijksmuseum, Amsterdam",
                     description: "This massive group portrait shows a company of civic guardsmen. The painting is famous for its dramatic use of light and shadow, and its dynamic composition that breaks from traditional group portraiture. Rembrandt's innovative approach to lighting and his ability to capture individual personalities within a group setting made this one of the most important works of the Dutch Golden Age. The painting's original name was 'The Company of Captain Frans Banning Cocq and Lieutenant Willem van Ruytenburch.'"
                 }
-            }//,
+            },
+            { name: 'Bible', icon: '📖', keywords: ['bible', 'b', 'scripture'], subTools: [
+                { name: 'Search', icon: '🔍', keywords: ['search', 's'], searchUrl: 'https://www.biblegateway.com/quicksearch/?quicksearch={query}' },
+                { name: 'NIV', icon: '📖', keywords: ['niv', 'new international'], searchUrl: 'https://www.biblegateway.com/passage/?search={query}&version=NIV' },
+                { name: 'KJV', icon: '📖', keywords: ['kjv', 'king james'], searchUrl: 'https://www.biblegateway.com/passage/?search={query}&version=KJV' },
+                { name: 'NKJV', icon: '📖', keywords: ['nkjv', 'new king james'], searchUrl: 'https://www.biblegateway.com/passage/?search={query}&version=NKJV' },
+                { name: 'ESV', icon: '📖', keywords: ['esv', 'english standard'], searchUrl: 'https://www.biblegateway.com/passage/?search={query}&version=ESV' }
+            ]},
+            { name: 'Canva', icon: '🎨', keywords: ['canva', 'c', 'whiteboard'], isDirectSearch: true, searchUrl: 'https://www.canva.com/design?create&type=TAEwJH6TtA8&category=tAEv8Hh5on0&analyticsCorrelationId=4f7db979-8dee-4598-afb9-a261cfe126a0' },
+            { name: 'Developer Link', icon: '👨‍💻', keywords: ['original', 'development', 'developer'], isDirectSearch: true, searchUrl: 'file:///Users/webstarts/Desktop/real%20quick/easyHome.html' },
             //{ name: 'Bunny', icon: '🐰', keywords: ['pornhub', 'porn', 'sex', 'pornhub.com'], isDirectSearch: false, searchUrl: 'https://www.pornhub.com/video/search?search={query}' }
         ];
 
@@ -742,6 +751,12 @@
                         inputValue = '';
                         selectedIndex = -1;
                         updateDisplay();
+                    } else if (selectedApp.name === 'Bible') {
+                        // For Bible, go directly to search phase but keep sub-tools visible
+                        searchPhase = 2;
+                        inputValue = '';
+                        selectedIndex = -1;
+                        updateDisplay();
                     } else if (selectedApp.isDirectSearch) {
                         const searchUrl = selectedApp.searchUrl.replace('{query}', '');
                         if (searchUrl) {
@@ -760,79 +775,41 @@
                         updateDisplay();
                     }
                 } else if (inputValue.trim()) {
-                    // Only perform Google search if no apps match
                     window.open(`https://www.google.com/search?q=${encodeURIComponent(inputValue)}`, '_blank');
                     resetSearch();
                 }
-            } else if (searchPhase === 1) {
-                const predictions = getPredictions(inputValue.trim(), selectedApp.subTools);
-                let selectedItem = null;
-
-                if (selectedIndex >= 0 && predictions[selectedIndex]) {
-                    selectedItem = predictions[selectedIndex];
-                } else if (predictions.length > 0) {
-                    selectedItem = predictions[0];
-                } else if (inputValue.trim() && selectedApp.subTools) {
-                    selectedItem = selectedApp.subTools.find(item => 
-                        item.name.toLowerCase() === inputValue.trim().toLowerCase() ||
-                        item.keywords.some(k => k.toLowerCase() === inputValue.trim().toLowerCase())
-                    );
-                }
-
-                if (selectedItem) {
-                    selectedSubTool = selectedItem;
-                    searchPhase = 2;
-                    inputValue = '';
-                    selectedIndex = -1;
-                    updateDisplay();
-                } else if (selectedApp.name === 'YouTube') {
-                    // Default to Videos for YouTube if no specific sub-tool is selected
-                    selectedSubTool = selectedApp.subTools.find(tool => tool.name === 'Videos');
-                    searchPhase = 2;
-                    inputValue = '';
-                    selectedIndex = -1;
-                    updateDisplay();
-                } else if (selectedApp.subTools && selectedApp.subTools.length > 0) {
-                    // For other apps, default to first sub-tool
-                    selectedSubTool = selectedApp.subTools[0];
-                    searchPhase = 2;
-                    inputValue = '';
-                    selectedIndex = -1;
-                    updateDisplay();
-                }
             } else if (searchPhase === 2) {
                 if (inputValue.trim()) {
-                    let searchUrl = selectedSubTool ? selectedSubTool.searchUrl : selectedApp.searchUrl;
+                    let searchUrl;
                     
-                    // Special handling for YouTube Channel search
-                    if (selectedApp.name === 'YouTube' && selectedSubTool && selectedSubTool.name === 'Channel') {
-                        // Get the exact input, only removing @ if it's at the start
-                        const query = inputValue.trim();
-                        const channelName = query.startsWith('@') ? query.substring(1) : query;
-                        
-                        // First try direct channel URL with exact case
-                        const directChannelUrl = `https://www.youtube.com/@${channelName}`;
-                        
-                        // Check if the channel exists
-                        fetch(directChannelUrl)
-                            .then(response => {
-                                if (response.ok) {
-                                    // Channel exists, open direct URL
-                                    window.open(directChannelUrl, '_blank');
-                                } else {
-                                    // Channel doesn't exist, do channel search
-                                    const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(channelName)}&sp=EgIQAg%253D%253D`;
-                                    window.open(searchUrl, '_blank');
-                                }
-                            })
-                            .catch(() => {
-                                // If fetch fails, do channel search
-                                const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(channelName)}&sp=EgIQAg%253D%253D`;
-                                window.open(searchUrl, '_blank');
-                            });
+                    if (selectedApp.name === 'Bible') {
+                        // Check if a translation was selected
+                        const translationMatch = selectedApp.subTools.find(tool => 
+                            tool.name !== 'Search' && 
+                            (inputValue.toLowerCase().startsWith(tool.name.toLowerCase()) || 
+                             tool.keywords.some(k => inputValue.toLowerCase().startsWith(k)))
+                        );
+
+                        if (translationMatch) {
+                            // Remove the translation keyword from the search query
+                            const query = inputValue.trim().replace(new RegExp(`^${translationMatch.name}|${translationMatch.keywords.join('|')}`, 'i'), '').trim();
+                            
+                            // If the query looks like a verse reference
+                            const versePattern = /^[1-3]?\s*[A-Za-z]+(?:\s+\d+)?(?::\d+(?:-\d+)?)?$/;
+                            if (versePattern.test(query)) {
+                                searchUrl = `https://www.biblegateway.com/passage/?search=${encodeURIComponent(query)}&version=${translationMatch.name}`;
+                            } else {
+                                searchUrl = `https://www.biblegateway.com/quicksearch/?quicksearch=${encodeURIComponent(query)}&qs_version=${translationMatch.name}`;
+                            }
+                        } else {
+                            // No translation selected, use general search
+                            searchUrl = `https://www.biblegateway.com/quicksearch/?quicksearch=${encodeURIComponent(inputValue.trim())}`;
+                        }
                     } else {
-                        window.open(searchUrl.replace('{query}', encodeURIComponent(inputValue.trim())), '_blank');
+                        searchUrl = selectedSubTool ? selectedSubTool.searchUrl : selectedApp.searchUrl;
                     }
+                    
+                    window.open(searchUrl.replace('{query}', encodeURIComponent(inputValue.trim())), '_blank');
                 }
                 resetSearch();
             }
